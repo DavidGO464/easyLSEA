@@ -25,3 +25,4 @@ Suggests:
     lipidAnnotator
 URL: https://github.com/DavidGO464/easyLSEA
 BugReports: https://github.com/DavidGO464/easyLSEA/issues
+LazyData: true
