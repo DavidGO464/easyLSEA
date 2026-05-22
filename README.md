@@ -3,6 +3,10 @@
 <!-- badges: start -->
 [![R-CMD-check](https://github.com/DavidGO464/easyLSEA/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/DavidGO464/easyLSEA/actions/workflows/R-CMD-check.yaml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+[![DOI](https://zenodo.org/badge/1246397779.svg)](https://doi.org/10.5281/zenodo.20341372)
+
+
 <!-- badges: end -->
 
 **easyLSEA** is an R package for biology-aware **Lipid Set Enrichment
