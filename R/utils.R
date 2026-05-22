@@ -100,8 +100,11 @@ utils::globalVariables(c(
   }
 
   # -- Oxylipins (hydroxy/oxo/keto FAs and eicosanoids) ----------------------
+  # intToUtf8(177L) produces the +/- sign (U+00B1) at runtime without
+  # embedding a non-ASCII character in the source file.
   oxylipin_pat <- paste0(
-    "^([(][\\u00b1][)]|[0-9]+[(][A-Z][)]-|[0-9]+-hydroxy|[0-9]+-oxo|",
+    "^([(][", intToUtf8(177L), "][)]",
+    "|[0-9]+[(][A-Z][)]-|[0-9]+-hydroxy|[0-9]+-oxo|",
     "[0-9]+-keto|alpha-hydroxy|[0-9]+R-hydroxy|[0-9]+,|2E,4E|",
     "3-hydroxy|2-hydroxy|Hexacosanedioic|Prostaglandin|HpODE|",
     "isoprostane|resolvin|leukotriene|thromboxane)"
