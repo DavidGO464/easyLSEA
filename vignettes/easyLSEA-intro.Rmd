@@ -1,0 +1,266 @@
+---
+title: "Introduction to easyLSEA"
+author: "David Guardamino Ojeda, MD"
+date: "`r Sys.Date()`"
+output:
+  rmarkdown::html_vignette:
+    toc: true
+    toc_depth: 3
+vignette: >
+  %\VignetteIndexEntry{Introduction to easyLSEA}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse  = TRUE,
+  comment   = "#>",
+  fig.width = 7,
+  fig.height = 5,
+  out.width = "100%"
+)
+set.seed(42)
+```
+
+## Overview
+
+**easyLSEA** provides biology-aware Lipid Set Enrichment Analysis (LSEA)
+for untargeted lipidomics data. It combines two complementary enrichment
+engines -- the Kolmogorov-Smirnov (KS) test and the fast gene set
+enrichment algorithm (fgsea) -- with a dedicated fatty acid chain analysis
+module, all wrapped in a single-function interface.
+
+The typical workflow is:
+
+1. **Annotate** lipid names with class and category information
+2. **Enrich** lipid classes and categories using KS and/or fgsea
+3. **Analyse** fatty acid chain composition patterns
+4. **Visualise** and **export** results
+
+## Installation
+
+```{r install, eval = FALSE}
+# From GitHub
+remotes::install_github("DavidGO464/easyLSEA")
+
+# Optional: fgsea engine (Bioconductor)
+BiocManager::install("fgsea")
+```
+
+## The example dataset
+
+easyLSEA ships with `lipid_example`, a synthetic dataset of 200 lipid
+species simulating a NASH vs Control comparison. PC and PE species are
+enriched in NASH; TG species are depleted. This known structure lets us
+verify that the analysis recovers the embedded signal.
+
+```{r data}
+library(easyLSEA)
+
+data("lipid_example")
+head(lipid_example)
+```
+
+```{r data-summary}
+table(lipid_example$LipidClass)
+```
+
+## Step 1 -- Lipid annotation
+
+`annotate_lipids()` assigns each lipid to its class, LIPID MAPS structural
+category, and functional category using hierarchical prefix matching
+validated against real VLDL lipidomics data.
+
+```{r annotate}
+annotated <- annotate_lipids(
+  data      = lipid_example,
+  lipid_col = "LipidName",
+  verbose   = TRUE
+)
+
+# Annotation columns added
+annotated[1:4, c("LipidName", "LipidClass", "LipidCategory_LMAPS",
+                  "LipidCategory_functional")]
+```
+
+The internal classifier covers all major lipid classes encountered in
+untargeted lipidomics: glycerophospholipids, sphingolipids, glycerolipids,
+fatty acyls, sterols, acylcarnitines, oxylipins, and bile acids. An
+optional `lipidAnnotator` backend is available for enhanced annotation
+(requires separate installation).
+
+## Step 2 -- Lipid Set Enrichment Analysis
+
+`run_lsea()` tests whether lipid sets (defined by class or category) are
+coordinately shifted between groups. It tests three biological levels
+simultaneously: `LipidClass`, `LipidCategory_LMAPS`, and
+`LipidCategory_functional`.
+
+```{r lsea, message = FALSE}
+lsea_out <- run_lsea(
+  data      = annotated,
+  fc_col    = "logFC",
+  pval_col  = "P.Value",
+  case_lbl  = "NASH",
+  ref_lbl   = "Control",
+  engine    = "ks",      # "ks", "fgsea", or "both"
+  n_perm    = 500L,      # increase to 2000 for publication
+  verbose   = FALSE
+)
+
+# KS results sorted by p-value
+head(lsea_out$ks[order(lsea_out$ks$KS_pval), ])
+```
+
+### Interpreting the KS output
+
+| Column | Meaning |
+|---|---|
+| `Group` | Lipid set (class or category) |
+| `N_group` | Number of lipids in the set |
+| `DirectionalScore` | Cohen's d analog -- effect size and direction |
+| `KS_pval` | KS test p-value (primary inference) |
+| `DS_perm_pval` | Permutation p for the DirectionalScore (secondary) |
+| `FDR_LSEA` | Benjamini-Hochberg adjusted p-value |
+| `Direction` | "up in NASH" or "up in Control" |
+| `ContributingLipids_KS` | Lipids driving the distributional shift |
+
+The `DirectionalScore` is a standardised mean difference (Cohen's d
+analog). Positive values indicate higher logFC in the case group (NASH);
+negative values indicate lower logFC (depleted in NASH).
+
+### Running both engines
+
+When `engine = "both"`, results from KS and fgsea are merged with a
+`Convergence` column indicating sets significant in both methods:
+
+```{r both, eval = FALSE}
+lsea_both <- run_lsea(
+  data      = annotated,
+  fc_col    = "logFC",
+  engine    = "both",
+  case_lbl  = "NASH",
+  ref_lbl   = "Control"
+)
+
+# Sets significant in both engines
+lsea_both$combined[lsea_both$combined$Convergence == "KS+fgsea", ]
+```
+
+## Step 3 -- Chain analysis
+
+`parse_lipid_chains()` extracts fatty acid chain information from lipid
+names using class-specific parsing strategies:
+
+- **sn-2 chain**: PC, PE (sn-1 is relatively conserved)
+- **N-acyl chain**: SM, Cer, HexCer (sphingoid base excluded)
+- **Long format**: TG and PI (one row per acyl chain)
+- **Single chain**: LPC, LPE, CAR
+
+```{r chains, message = FALSE}
+chains_out <- parse_lipid_chains(
+  data      = annotated,
+  lipid_col = "LipidName",
+  class_col = "LipidClass"
+)
+
+# Parsing summary
+table(chains_out$summary$status)
+```
+
+```{r chains-head}
+# Chain observations for parsed lipids
+head(chains_out$parsed[, c("LipidName", "LipidClass", "chain_type",
+                             "analysis_chain_cl", "analysis_chain_cs")])
+```
+
+## Step 4 -- One-call wrapper
+
+For most use cases, `easyLSEA()` runs the complete pipeline in a single
+call and returns a structured `easyLSEA_result` object:
+
+```{r wrapper, message = FALSE, warning = FALSE}
+result <- easyLSEA(
+  data       = lipid_example,
+  lipid_col  = "LipidName",
+  fc_col     = "logFC",
+  case_lbl   = "NASH",
+  ref_lbl    = "Control",
+  engine     = "ks",
+  n_perm     = 500L,
+  plots      = FALSE,    # set TRUE to generate ggplot objects
+  verbose    = FALSE
+)
+
+print(result)
+```
+
+### Accessing results
+
+```{r access}
+# LSEA table
+head(result$lsea$ks[order(result$lsea$ks$KS_pval), ])
+
+# Chain parsing summary
+table(result$chains$summary$status)
+
+# Metadata
+str(result$meta)
+```
+
+## Step 5 -- Export
+
+`export_lsea()` saves all results to a timestamped folder:
+
+```{r export, eval = FALSE}
+export_lsea(
+  result  = result,
+  dir     = "results/",
+  prefix  = "NASH_vs_Control",
+  format  = c("csv", "excel", "pdf")
+)
+```
+
+This creates:
+
+```
+NASH_vs_Control_2026-05-22/
+  tables/
+    lsea_results_ks.csv
+    lsea_combined.csv
+    chain_results.csv
+    chain_parsed.csv
+  plots/
+    bubble_ks.pdf
+    ...
+  results.xlsx
+```
+
+Excel export requires `openxlsx`; HTML export requires `rmarkdown` and
+`knitr` (both installable from CRAN).
+
+## Modular use
+
+Each step can be run independently:
+
+```{r modular, eval = FALSE}
+# Annotation only
+annotated <- annotate_lipids(data, lipid_col = "LipidName")
+
+# Enrichment only
+lsea_out <- run_lsea(annotated, fc_col = "logFC", engine = "ks")
+
+# Chain analysis only
+chains_out <- parse_lipid_chains(annotated)
+
+# Plots only (from existing result)
+plots <- plot_lsea(lsea_out, case_lbl = "NASH", ref_lbl = "Control")
+chain_plots <- plot_chains(chains_out, case_lbl = "NASH", ref_lbl = "Control")
+```
+
+## Session info
+
+```{r session}
+sessionInfo()
+```

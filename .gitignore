@@ -5,3 +5,6 @@
 .DS_Store
 .quarto
 *.tar.gz
+inst/doc
+/doc/
+/Meta/
