@@ -177,10 +177,8 @@ If you use easyLSEA in your research, please cite:
 
 > Guardamino Ojeda D, et al. (2026). *easyLSEA: biology-aware lipid set
 > enrichment analysis with dual KS and fgsea engines*. GitHub:
-> https://github.com/DavidGO464/easyLSEA
-
-A journal submission is in preparation. A Zenodo DOI will be added upon
-first release.
+> https://github.com/DavidGO464/easyLSEA.
+> DOI: https://doi.org/10.5281/zenodo.20341372
 
 ---
 
