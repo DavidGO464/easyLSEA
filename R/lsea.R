@@ -138,6 +138,13 @@
     grp_fc  <- data[[fc_col]][grp_idx]
     bg_fc   <- data[[fc_col]][!grp_idx]
 
+    # Guard: ks.test() requires at least 1 background observation
+    if (length(bg_fc) == 0L) {
+      warning("Group '", grp, "': background is empty (no other lipids). ",
+              "Ensure data contains more than one lipid class.", call. = FALSE)
+      return(NULL)
+    }
+
     # KS test (two-sided)
     ks_p <- stats::ks.test(grp_fc, bg_fc, alternative = "two.sided")$p.value
 
@@ -199,6 +206,9 @@
   } else {
     lapply(groups, run_one)
   }
+
+  rows <- Filter(Negate(is.null), rows)
+  if (length(rows) == 0L) return(data.frame())
 
   out <- do.call(rbind, rows)
   out$FDR_LSEA <- stats::p.adjust(out$KS_pval, method = "BH")
