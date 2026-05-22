@@ -22,7 +22,10 @@ Imports:
     withr
 Suggests: 
     fgsea,
+    knitr,
     lipidAnnotator,
+    openxlsx,
+    rmarkdown,
     testthat (>= 3.0.0)
 URL: https://github.com/DavidGO464/easyLSEA
 BugReports: https://github.com/DavidGO464/easyLSEA/issues
