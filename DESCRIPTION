@@ -1,11 +1,20 @@
 Package: easyLSEA
-Title: What the Package Does (One Line, Title Case)
+Title: Lipid Set Enrichment Analysis with Dual KS and fgsea Engines
 Version: 0.0.0.9000
 Authors@R: 
-    person("First", "Last", , "first.last@example.com", role = c("aut", "cre"))
-Description: What the package does (one paragraph).
+    person("David", "Guardamino Ojeda",
+           role = c("aut", "cre"),
+           email = "david.guardamino@gmail.com",
+           comment = c(ORCID = "0000-0002-3122-2218"))
+Description: Provides biology-aware lipid set enrichment analysis (LSEA)
+    for lipidomics data using dual engines: the Kolmogorov-Smirnov test
+    and the fast gene set enrichment algorithm (fgsea). Includes lipid
+    class annotation, fatty acid chain analysis, and export utilities
+    for reproducible reporting.
 License: MIT + file LICENSE
 Encoding: UTF-8
+Depends:
+    R (>= 4.1.0)
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 8.0.0
 Imports: 
