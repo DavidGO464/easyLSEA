@@ -1,0 +1,25 @@
+cff-version: 1.2.0
+message: "If you use easyLSEA, please cite it as below."
+type: software
+title: "easyLSEA: Biology-Aware Lipid Set Enrichment Analysis"
+version: 0.1.1
+doi: 10.5281/zenodo.20341372
+date-released: 2026-05-22
+license: MIT
+authors:
+  - family-names: Guardamino Ojeda
+    given-names: David
+    orcid: "https://orcid.org/0000-0002-3122-2218"
+repository-code: "https://github.com/DavidGO464/easyLSEA"
+abstract: >
+  easyLSEA provides biology-aware lipid set enrichment analysis (LSEA)
+  for untargeted lipidomics data using dual engines: the
+  Kolmogorov-Smirnov test and the fast gene set enrichment algorithm
+  (fgsea). Includes lipid class annotation, fatty acid chain analysis,
+  and export utilities for reproducible reporting.
+keywords:
+  - lipidomics
+  - enrichment analysis
+  - R package
+  - lipid set enrichment
+  - bioinformatics
