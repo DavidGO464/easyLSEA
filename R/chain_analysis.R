@@ -67,6 +67,9 @@ default_chain_config <- function() {
 
 #' Parse sn-2 chain from a resolved "sn1/sn2" or "sn1_sn2" annotation
 #'
+#' Handles double bond geometry notation such as \code{16:1(7Z)/18:1(11E)}
+#' and \code{18:2(9Z.12Z)/16:0} by stripping parenthetical annotations
+#' before splitting on the chain separator.
 #' Returns a one-row data.frame with columns \code{chain_type}, sn-position
 #' chain lengths/saturations, total chain, and analysis chain (sn-2).
 #' Returns \code{NULL} if the name does not contain a resolved two-chain
@@ -74,10 +77,15 @@ default_chain_config <- function() {
 #'
 #' @noRd
 .parse_sn2 <- function(name) {
+  # Match two chain tokens separated by / or _, allowing optional parenthetical
+  # geometry annotations between the chain and the separator:
+  # e.g. "16:1(7Z)/18:1(11E)" or "18:2(9Z.12Z)_16:0"
   m <- regmatches(name,
-                  regexpr("(\\d+:\\d+)[_/](\\d+:\\d+)", name, perl = TRUE))
+                  regexpr("(\\d+:\\d+(?:\\([^)]*\\))?)[_/](\\d+:\\d+(?:\\([^)]*\\))?)",
+                          name, perl = TRUE))
   if (length(m) == 0L) return(NULL)
-  parts <- strsplit(m, "[_/]")[[1L]]
+  parts <- strsplit(m, "[_/](?=\\d)", perl = TRUE)[[1L]]
+  if (length(parts) < 2L) return(NULL)
   sn1 <- .parse_one(parts[1L])
   sn2 <- .parse_one(parts[2L])
   if (anyNA(c(sn1, sn2))) return(NULL)
