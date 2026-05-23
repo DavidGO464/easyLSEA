@@ -90,50 +90,37 @@ annotate_lipids <- function(
   # -- Dispatch ---------------------------------------------------------------
   if (method == "lipidAnnotator") {
 
-    if (!requireNamespace("lipidAnnotator", quietly = TRUE))
-      stop(
-        "Package 'lipidAnnotator' is required for method = 'lipidAnnotator'.\n",
-        "Install from GitHub:\n",
-        "  remotes::install_github('<org>/lipidAnnotator')\n",
-        "Or use the built-in classifier with method = 'internal'.",
-        call. = FALSE
-      )
+    # annotate_lipid() is now part of easyLSEA (absorbed from lipidAnnotator).
+    # Uses the full LIPID MAPS parser with canonical shorthand support.
+    annot <- annotate_lipid(data[[annot_col]],
+                            detail   = "full",
+                            no_match = "ignore")
 
-    annot <- do.call(
-      getExportedValue("lipidAnnotator", "annotate"),
-      list(data[[annot_col]])
+    # Map annotate_lipid() columns to easyLSEA standard
+    data$LipidClass      <- annot$Class
+    data$LipidClass_Full <- annot$lm_class_name
+
+    # lm_category_name = LIPID MAPS structural category
+    data$LipidCategory_LMAPS <- annot$lm_category_name
+
+    # Functional category: Oxylipins and Bile Acids as standalone groups
+    data$LipidCategory_functional <- mapply(
+      .get_lipid_category_functional,
+      annot$lm_category_name,
+      annot$Class,
+      SIMPLIFY = TRUE, USE.NAMES = FALSE
     )
 
-    # Align column names to easyLSEA standard if lipidAnnotator uses
-    # different names -- adjust this mapping as needed
-    name_map <- c(
-      "LipidClass"               = "LipidClass",
-      "LipidClass_Full"          = "LipidClass_Full",
-      "LipidCategory_LMAPS"      = "LipidCategory_LMAPS",
-      "LipidCategory_functional" = "LipidCategory_functional"
+    data$LipidCategory <- mapply(
+      .get_lipid_category,
+      data$LipidCategory_LMAPS,
+      data$LipidCategory_functional,
+      SIMPLIFY = TRUE, USE.NAMES = FALSE
     )
-    for (target in names(name_map)) {
-      source <- name_map[[target]]
-      if (source %in% names(annot) && !target %in% names(annot))
-        annot[[target]] <- annot[[source]]
-    }
 
-    annot_cols <- c("LipidClass", "LipidClass_Full",
-                    "LipidCategory_LMAPS", "LipidCategory_functional")
-    present <- intersect(annot_cols, names(annot))
-    for (col in present) data[[col]] <- annot[[col]]
-
-    # Compute LipidCategory if not already returned by lipidAnnotator
-    if (!"LipidCategory" %in% names(data) &&
-        all(c("LipidCategory_LMAPS",
-              "LipidCategory_functional") %in% names(data))) {
-      data$LipidCategory <- mapply(
-        .get_lipid_category,
-        data$LipidCategory_LMAPS,
-        data$LipidCategory_functional,
-        SIMPLIFY = TRUE, USE.NAMES = FALSE
-      )
-    }
+    # Replace NA LipidClass with "Unknown" for consistency with internal method
+    data$LipidClass[is.na(data$LipidClass) |
+                      data$LipidClass == ""] <- "Unknown"
 
   } else {
 

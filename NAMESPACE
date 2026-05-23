@@ -2,6 +2,7 @@
 
 S3method(print,easyLSEA_result)
 S3method(summary,easyLSEA_result)
+export(annotate_lipid)
 export(annotate_lipids)
 export(default_chain_config)
 export(easyLSEA)

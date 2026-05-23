@@ -233,6 +233,38 @@ utils::globalVariables(c(
        LipidCategory_functional = "Unclassified")
 }
 
+#' Derive functional category from LIPID MAPS category and lipid class
+#'
+#' Used when annotating with \code{annotate_lipid()} (full parser) to map
+#' LIPID MAPS structural categories to the functional categories used by
+#' easyLSEA. Oxylipins and Bile Acids are separated from Fatty Acyls;
+#' Acylcarnitines are separated from Fatty Acyls; Saccharolipids become
+#' Glycolipids.
+#'
+#' @param lm_category_name Character(1). LIPID MAPS category name from
+#'   \code{annotate_lipid(detail = "full")}.
+#' @param cls Character(1). Lipid class abbreviation (e.g. "HETE", "BA",
+#'   "CAR").
+#' @return Character(1). Functional category label.
+#'
+#' @noRd
+.get_lipid_category_functional <- function(lm_category_name, cls) {
+  oxylipin_classes <- c(
+    "HETE", "HEPE", "EET", "DHET", "DiHETE", "OxoETE", "HpETE", "HHTrE",
+    "EpETE", "HODE", "HOTrE", "EpOME", "HDoHE", "Resolvin", "Maresin",
+    "Protectin", "LXA4", "LXB4", "LTB4", "LTC4", "LTD4",
+    "PGE2", "PGD2", "PGF2a", "PGI2", "PGB2", "15d-PGJ2", "TXB2",
+    "Oxylipin"
+  )
+  if (!is.na(cls) && cls %in% oxylipin_classes) return("Oxylipins")
+  if (!is.na(cls) && cls == "BA")               return("Bile Acids")
+  if (!is.na(cls) && cls == "CAR")              return("Acylcarnitines")
+  if (!is.na(lm_category_name) &&
+      lm_category_name == "Saccharolipids")     return("Glycolipids")
+  if (is.na(lm_category_name))                  return("Unclassified")
+  lm_category_name
+}
+
 #' Derive LipidCategory from LMAPS and functional category
 #'
 #' Oxylipins and Bile Acids are treated as standalone categories rather than
