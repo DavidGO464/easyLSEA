@@ -52,8 +52,9 @@ columns \code{LipidName}, \code{LipidClass},
 \description{
 Applies biology-aware chain parsing to each lipid in \code{data},
 routing each species to the appropriate parser based on its lipid class:
-sn-2 (PC, PE), N-acyl (SM, Cer, HexCer), long-format (TG, PI),
-single-chain (LPC, LPE, CAR), or excluded.
+sn-2 (PC, PE, PE O), N-acyl (SM, Cer, HexCer, GlcCer, Hex2Cer, Hex3Cer),
+long-format (TG, DG, PS, PG, PA, PI, CL),
+single-chain (LPC, LPE, LPI, LPG, LPA, LPS, CAR, FFA, FA, CE), or excluded.
 }
 \examples{
 \dontrun{
