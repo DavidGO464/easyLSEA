@@ -144,19 +144,22 @@ export_lsea(lsea_out, format = c("csv", "excel"))
 
 ## Lipid class coverage
 
+Classes follow [LIPID MAPS](https://www.lipidmaps.org) shorthand nomenclature.
+
 | Category | Classes |
 |---|---|
-| Glycerophospholipids | PC, PE, PI, PS, PG, PA, LPC, LPE, LPI, LPG, LPA, LPS, LNAPE |
-| Ether-GPL | PC O, PE O, PS O, PG O |
+| Glycerophospholipids | PC, PE, PI, PS, PG, PA, CL, LPC, LPE, LPI, LPG, LPA, LPS |
+| Ether-GPL | PC O, PE O, PS O, PG O, TG O, DG O |
 | Sphingolipids | SM, Cer, HexCer, GlcCer, Hex2Cer, Hex3Cer, SHexCer, CerPE, PE-Cer |
-| Glycerolipids | TG, DG, MG, TG O, DG O |
+| Glycerolipids | TG, DG, MG |
 | Fatty Acyls | FFA, FA, FAHFA |
 | Acylcarnitines | CAR |
 | Sterol Lipids | CE, FC, ST |
-| Oxylipins | Hydroxy-FA, eicosanoids, prostaglandins, resolvins |
-| Bile Acids | Common and conjugated bile acids |
+| Bile Acids | CA, CDCA, DCA, LCA, GCA, TCA, GCDCA, TCDCA |
 | Glycolipids | DGDG, MGDG |
 | Other | CoQ, Unknown (fallback) |
+
+> **Oxylipins** are not a formal LIPID MAPS category; oxidized fatty acid species (e.g. HETE, HODE, PGE2) are classified as Fatty Acyls and handled at class-level LSEA only.
 
 ---
 
