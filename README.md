@@ -26,9 +26,15 @@ fatty acid chain analysis module.
 - **Biology-aware annotation** -- hierarchical prefix matching covering
   all major lipid classes (GPL, SL, GL, FA, ST, acylcarnitines, oxylipins,
   bile acids), validated against real VLDL lipidomics data.
-- **Chain analysis** -- class-aware parsing of sn-2 (PC, PE), N-acyl (SM,
-  Cer, HexCer), long-format (TG, PI), and single-chain (LPC, LPE, CAR)
-  species with tile and trend plots.
+- **Chain analysis** -- class-aware parsing of sn-2 (PC, PE, PE O),
+  N-acyl (SM, Cer, HexCer, GlcCer, Hex2Cer, Hex3Cer), long-format
+  (TG, DG, PI, PS, PG, PA, CL), and single-chain (LPC, LPE, LPI, LPG,
+  LPA, LPS, CAR, FFA, CE) species with tile and trend plots. Classes
+  without resolved chain annotations fall back to class-level LSEA
+  automatically.
+- **Transparent parsing** -- a per-lipid summary table reports the parsing
+  status of every species, making it easy to audit which lipids entered
+  chain analysis and why others were excluded.
 - **Three analysis levels** -- LipidClass, LipidCategory_LMAPS, and
   LipidCategory_functional tested simultaneously.
 - **Flexible export** -- CSV tables, multi-sheet Excel workbook, PDF/PNG
@@ -132,8 +138,19 @@ lsea_out <- run_lsea(
   ref_lbl    = "Control"
 )
 
-# Step 3 -- chain analysis only
+# Step 3 -- chain analysis
 chains_out <- parse_lipid_chains(annotated)
+
+# Inspect parsed chains (one row per acyl chain observation)
+head(chains_out$parsed)
+
+# Audit parsing: see which lipids were parsed and which were excluded
+table(chains_out$summary$status)
+#> excluded_class                             parsed
+#>            142                                389
+#> excluded_total_notation_unresolved_PI          23
+#>             23
+
 chain_plots <- plot_chains(chains_out, case_lbl = "NASH", ref_lbl = "Control")
 
 # Step 4 -- export
@@ -165,7 +182,7 @@ Classes follow [LIPID MAPS](https://www.lipidmaps.org) shorthand nomenclature.
 
 ## Chain analysis framework
 
-The strategy applied to each lipid class depends on its biological structure and the annotation resolution available in the dataset. When individual chains are not resolved, all classes fall back to class-level LSEA.
+The strategy applied to each lipid class depends on its biological structure and the annotation resolution available in the dataset. When individual chains are not resolved, all classes fall back to class-level LSEA automatically.
 
 | Strategy | Classes | Rationale |
 |---|---|---|
@@ -174,6 +191,7 @@ The strategy applied to each lipid class depends on its biological structure and
 | **Long format** | TG, DG, PI, PS, PG, PA, CL | all acyl chains are biologically variable; each resolved chain is analysed as an independent observation |
 | **Single chain** | LPC, LPE, LPI, LPG, LPA, LPS, CAR, FFA, CE | one acyl chain per species by definition |
 | **Class-level LSEA only** | FC, ST, CoQ, BA, FAHFA, Oxylipin | no acyl chain or structure too complex for chain-level inference |
+
 ---
 
 ## Citation
