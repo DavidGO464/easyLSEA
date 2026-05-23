@@ -156,15 +156,33 @@ default_chain_config <- function() {
 #' Parse TG (and other long-format lipids) into one row per acyl chain
 #'
 #' Excludes total-notation TG (TAG + space + digit) and ether TG O-.
+#' Skips the first \code{cl:cs} token when it matches the total composition
+#' (i.e. appears before any parenthesis), and filters out empty acyl positions
+#' (0:0) commonly used by some software to pad DG to three positions.
 #' Returns a multi-row data.frame (one row per resolved chain), or
-#' \code{NULL} if the name is total notation, ether, or has < 2 chains.
+#' \code{NULL} if the name is total notation, ether, or has < 2 valid chains.
 #'
 #' @noRd
 .parse_long <- function(name) {
   if (grepl("^TAG\\s+\\d", name, perl = TRUE)) return(NULL)  # total notation
   if (grepl("O-",          name, fixed = TRUE)) return(NULL)  # ether lipid
-  chains_raw <- regmatches(name, gregexpr("\\d+:\\d+", name, perl = TRUE))[[1L]]
+
+  # Strip everything before the first "(" to remove the total composition token
+  # e.g. "DG 30:0 (14:0/16:0/0:0)" -> "(14:0/16:0/0:0)"
+  # If no parenthesis, fall back to all tokens (e.g. "DG 16:0/18:1")
+  name_inner <- if (grepl("\\(", name, fixed = TRUE))
+    sub("^[^(]*\\((.*)\\).*$", "\\1", name, perl = TRUE)
+  else
+    name
+
+  chains_raw <- regmatches(name_inner,
+                           gregexpr("\\d+:\\d+", name_inner, perl = TRUE))[[1L]]
+
+  # Filter out empty acyl positions (0:0) used as sn-3 placeholder in DG
+  chains_raw <- chains_raw[chains_raw != "0:0"]
+
   if (length(chains_raw) < 2L) return(NULL)
+
   rows <- Filter(Negate(is.null), lapply(chains_raw, function(ch) {
     p <- .parse_one(ch)
     if (anyNA(p)) return(NULL)
