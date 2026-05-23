@@ -28,15 +28,20 @@ default_chain_config <- function() {
     # sn-2 chain: PC, PE, PE O
     # sn-1 relatively conserved; sn-2 is the biologically variable position.
     sn2    = c("PC", "PE", "PE O"),
-    # N-acyl chain: sphingolipids with resolved "/" or "_" notation
-    nacyl  = c("SM", "HexCer", "Cer"),
-    # Long format: one row per acyl chain (TG: 3 rows; PI: 2 rows)
-    long   = c("TG"),
-    # Single chain: lyso-species and acylcarnitines
-    single = c("LPC", "LPE", "CAR"),
-    # Excluded: total notation unresolved, or insufficient n across studies
-    excl   = c("PC O", "PG", "PA", "PS", "MG", "DG",
-               "Hex2Cer", "CerPE", "SHexCer", "Hex3Cer", "Unknown")
+    # N-acyl chain: sphingolipids with resolved "/" or "_" notation.
+    # GlcCer, Hex2Cer, Hex3Cer follow the same logic as HexCer: sphingoid
+    # base (d18:1) is conserved; N-acyl chain drives species diversity.
+    nacyl  = c("SM", "Cer", "HexCer", "GlcCer", "Hex2Cer", "Hex3Cer"),
+    # Long format: one row per acyl chain.
+    # TG: 3 chains; DG, PS, PG, PA: 2 chains; CL: 4 chains (dedicated parser).
+    # PI has its own dedicated parser (.parse_pi) and is not listed here.
+    long   = c("TG", "DG", "PS", "PG", "PA"),
+    # Single chain: lyso-species, acylcarnitines, free fatty acids, cholesteryl esters.
+    single = c("LPC", "LPE", "LPI", "LPG", "LPA", "LPS", "CAR", "FFA", "FA", "CE"),
+    # Excluded: ether lipids with ambiguous chain assignment, or no acyl chain.
+    excl   = c("PC O", "PS O", "PG O", "TG O", "DG O",
+               "MG", "CerPE", "SHexCer", "PE-Cer",
+               "FC", "ST", "CoQ", "DGDG", "MGDG", "FAHFA", "Unknown")
   )
 }
 
@@ -213,6 +218,43 @@ default_chain_config <- function() {
   list(status = "parsed_PI_resolved", data = data)
 }
 
+#' Parse CL (cardiolipin) into one row per acyl chain
+#'
+#' CL carries four acyl chains (two per phosphatidylglycerol arm).
+#' CL 72:8 (total notation, single token) -> excluded with status
+#' \code{"excluded_total_notation_unresolved_CL"}.
+#' CL 16:1/16:1/18:1/14:0 -> long_format, four rows (one per chain).
+#' All four acyl positions are biologically variable; only resolved
+#' annotations enter chain analysis.
+#'
+#' @return Named list with elements \code{status} (character) and
+#'   \code{data} (data.frame or \code{NULL}).
+#'
+#' @noRd
+.parse_cl <- function(name) {
+  chains_raw <- regmatches(name,
+                           gregexpr("\\d+:\\d+", name, perl = TRUE))[[1L]]
+  if (length(chains_raw) < 2L)
+    return(list(status = "excluded_total_notation_unresolved_CL", data = NULL))
+
+  rows <- Filter(Negate(is.null), lapply(chains_raw, function(ch) {
+    p <- .parse_one(ch)
+    if (anyNA(p)) return(NULL)
+    data.frame(
+      chain_type         = "long_format",
+      source_chain       = ch,
+      analysis_chain_cl  = p["cl"],
+      analysis_chain_cs  = p["cs"],
+      row.names          = NULL, stringsAsFactors = FALSE
+    )
+  }))
+  if (length(rows) == 0L)
+    return(list(status = "excluded_unresolved_CL", data = NULL))
+
+  list(status = "parsed_CL_resolved",
+       data   = do.call(rbind, rows))
+}
+
 # -- Dispatcher ----------------------------------------------------------------
 
 #' Route a single lipid to the correct parser
@@ -248,6 +290,13 @@ default_chain_config <- function() {
     return(list(type = "long_format", data = result$data))
   }
 
+  if (cls == "CL") {
+    result <- .parse_cl(name)
+    if (is.null(result$data))
+      return(list(type = result$status, data = NULL))
+    return(list(type = "long_format", data = result$data))
+  }
+
   if (cls %in% cfg$long)
     return(list(type = "long_format", data = .parse_long(name)))
 
@@ -265,8 +314,9 @@ default_chain_config <- function() {
 #'
 #' Applies biology-aware chain parsing to each lipid in \code{data},
 #' routing each species to the appropriate parser based on its lipid class:
-#' sn-2 (PC, PE), N-acyl (SM, Cer, HexCer), long-format (TG, PI),
-#' single-chain (LPC, LPE, CAR), or excluded.
+#' sn-2 (PC, PE, PE O), N-acyl (SM, Cer, HexCer, GlcCer, Hex2Cer, Hex3Cer),
+#' long-format (TG, DG, PS, PG, PA, PI, CL),
+#' single-chain (LPC, LPE, LPI, LPG, LPA, LPS, CAR, FFA, FA, CE), or excluded.
 #'
 #' @param data A \code{data.frame} with at least the columns specified by
 #'   \code{lipid_col} and \code{class_col}. Typically the output of
