@@ -1,9 +1,0 @@
-bibentry(
-  bibtype  = "Manual",
-  title    = "easyLSEA: Biology-Aware Lipid Set Enrichment Analysis",
-  author   = person("David", "Guardamino Ojeda",
-                    comment = c(ORCID = "0000-0002-3122-2218")),
-  year     = "2026",
-  doi      = "10.5281/zenodo.20341372",
-  url      = "https://github.com/DavidGO464/easyLSEA"
-)
