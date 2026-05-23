@@ -162,18 +162,15 @@ export_lsea(lsea_out, format = c("csv", "excel"))
 
 ## Chain analysis framework
 
-The strategy applied to each lipid class depends on its biological structure 
-and the level of annotation typically available in lipidomics datasets.
+The strategy applied to each lipid class depends on its biological structure and the annotation resolution available in the dataset. When individual chains are not resolved, all classes fall back to class-level LSEA.
 
-| Strategy | Classes | Biological rationale |
+| Strategy | Classes | Rationale |
 |---|---|---|
-| **sn-2 chain** | PC, PE, PE O | sn-1 position is typically a saturated/palmitic chain; biological variability resides in sn-2 |
-| **N-acyl chain** | SM, Cer, HexCer, GlcCer | sphingoid base (d18:1) is conserved; the N-acyl chain drives class diversity |
-| **Long format** | TG, PI | all acyl chains are biologically variable; each chain is analysed as an independent observation |
-| **Single chain** | LPC, LPE, LPI, CAR, FFA, CE | one acyl chain per species by definition |
-| **Annotation-dependent** | PC O, PG, PA, PS, DG, Hex2Cer | processed when individual chains are resolved; falls back to class-level LSEA otherwise |
+| **sn-2 chain** | PC, PE, PE O | sn-1 position is typically conserved; biological variability resides in sn-2 |
+| **N-acyl chain** | SM, Cer, HexCer, GlcCer, Hex2Cer, Hex3Cer | sphingoid base (d18:1) is conserved; the N-acyl chain drives class diversity |
+| **Long format** | TG, DG, PI, PS, PG, PA, CL | all acyl chains are biologically variable; each resolved chain is analysed as an independent observation |
+| **Single chain** | LPC, LPE, LPI, LPG, LPA, LPS, CAR, FFA, CE | one acyl chain per species by definition |
 | **Class-level LSEA only** | FC, ST, CoQ, BA, FAHFA, Oxylipin | no acyl chain or structure too complex for chain-level inference |
-
 ---
 
 ## Citation
