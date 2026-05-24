@@ -8,6 +8,8 @@
  
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20341372.svg)](https://doi.org/10.5281/zenodo.20341372)
 
+ [![GitHub Downloads](https://img.shields.io/github/downloads/DavidGO464/easyLSEA/total?style=flat-square&color=orange)](https://github.com/DavidGO464/easyLSEA/releases)
+
 <!-- badges: end -->
 
 **easyLSEA** is an R package for biology-aware **Lipid Set Enrichment
