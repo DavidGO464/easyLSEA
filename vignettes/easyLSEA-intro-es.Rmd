@@ -104,7 +104,8 @@ resultado <- easyLSEA(
   pval_col  = "P.Value",
   case_lbl  = "NASH",
   ref_lbl   = "Control",
-  engine    = "both"   # ejecutar KS y fgsea
+  engine    = "both",  # ejecutar KS y fgsea
+  min_rank  = "E"      # incluir todos los ranks excepto P y NA (por defecto)
 )
 ```
 
@@ -179,12 +180,28 @@ Resultados del análisis de cadenas de ácidos grasos, disponible cuando
 `run_chains = TRUE`:
 
 ```{r chains}
-# Una fila por cadena acilo por lípido
+# Long format — una fila por cadena acilo por lípido
 head(resultado$chains$parsed)
 
-# Resumen del estado de parseo por lípido
+# Resumen del estado de parseo — una fila por lípido
 head(resultado$chains$summary)
+
+# Wide format — una fila por lípido con posiciones sn y totales
+head(resultado$chains$wide)
 ```
+
+La tabla `wide` es la más conveniente para reportes. Cada fila es un lípido,
+con columnas `sn1`, `sn2`, `sn3`, `sn4` con las cadenas individuales
+(e.g. `"18:1"`), y `total_carbons` / `total_unsat` con los totales sumados.
+La columna `chain_type` indica cómo interpretar las posiciones sn:
+
+| `chain_type` | `sn1` | `sn2` | `sn3` | `sn4` |
+|---|---|---|---|---|
+| `sn2` (PC, PE, PS...) | cadena sn-1 | cadena sn-2 | NA | NA |
+| `nacyl` (Cer, SM...) | base esfingoidea | cadena N-acilo | NA | NA |
+| `long_format` (TG) | cadena 1 | cadena 2 | cadena 3 | NA |
+| `long_format` (CL) | cadena 1 | cadena 2 | cadena 3 | cadena 4 |
+| `single` (CAR, LPC) | la cadena | NA | NA | NA |
 
 ### `resultado$plots`
 
@@ -358,6 +375,27 @@ resultado <- easyLSEA(
   fgsea_nperm = 20000L   # más permutaciones para fgsea
 )
 ```
+
+### Filtrar por nivel de confianza de anotación
+
+Cuando las anotaciones lipídicas incluyen un rank de confianza (A > B > C > D > E > P),
+el parámetro `min_rank` controla qué lípidos entran al análisis de cadenas:
+
+```{r min-rank}
+# Por defecto: incluye todos excepto P y NA
+resultado_todos <- easyLSEA(data = mis_datos_lipidicos, min_rank = "E")
+
+# Estricto: solo anotaciones de alta confianza (A y B)
+resultado_estricto <- easyLSEA(data = mis_datos_lipidicos, min_rank = "B")
+
+# O directamente en parse_lipid_chains
+cadenas_estrictas <- parse_lipid_chains(anotado, min_rank = "B")
+table(cadenas_estrictas$summary$status)
+```
+
+Los lípidos excluidos por `min_rank` aparecen en `resultado$chains$summary`
+con status `excluded_rank_below_X` (donde X es el umbral elegido), facilitando
+auditar qué lípidos fueron filtrados.
 
 ---
 

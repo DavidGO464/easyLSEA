@@ -101,7 +101,8 @@ result <- easyLSEA(
   pval_col  = "P.Value",
   case_lbl  = "NASH",
   ref_lbl   = "Control",
-  engine    = "both"   # run KS and fgsea
+  engine    = "both",   # run KS and fgsea
+  min_rank  = "E"       # include all confidence ranks except P and NA (default)
 )
 ```
 
@@ -175,12 +176,29 @@ head(result$lsea$combined)
 Fatty acid chain analysis results, available when `run_chains = TRUE`:
 
 ```{r chains}
-# One row per acyl chain per lipid
+# Long format — one row per acyl chain per lipid
 head(result$chains$parsed)
 
-# Parsing status summary per lipid
+# Parsing status — one row per lipid
 head(result$chains$summary)
+
+# Wide format — one row per lipid with sn positions and totals
+head(result$chains$wide)
 ```
+
+The `wide` table is the most convenient for reporting. Each row is one lipid,
+with columns `sn1`, `sn2`, `sn3`, `sn4` containing the individual acyl chain
+positions (e.g. `"18:1"`), and `total_carbons` / `total_unsat` with the
+summed totals. The `chain_type` column clarifies how to interpret the sn
+columns:
+
+| `chain_type` | `sn1` | `sn2` | `sn3` | `sn4` |
+|---|---|---|---|---|
+| `sn2` (PC, PE, PS...) | sn-1 chain | sn-2 chain | NA | NA |
+| `nacyl` (Cer, SM...) | sphingoid base | N-acyl chain | NA | NA |
+| `long_format` (TG) | chain 1 | chain 2 | chain 3 | NA |
+| `long_format` (CL) | chain 1 | chain 2 | chain 3 | chain 4 |
+| `single` (CAR, LPC) | the chain | NA | NA | NA |
 
 ### `result$plots`
 
@@ -354,6 +372,27 @@ result <- easyLSEA(
   fgsea_nperm = 20000L # more permutations for fgsea
 )
 ```
+
+### Filtering by annotation confidence rank
+
+When lipid annotations include a confidence rank (A > B > C > D > E > P),
+`min_rank` controls which lipids enter the chain analysis:
+
+```{r min-rank}
+# Default: include all except P and NA
+result_all <- easyLSEA(data = my_lipid_data, min_rank = "E")
+
+# Strict: include only high-confidence annotations (A and B)
+result_strict <- easyLSEA(data = my_lipid_data, min_rank = "B")
+
+# Or apply directly to parse_lipid_chains
+chains_strict <- parse_lipid_chains(annotated, min_rank = "B")
+table(chains_strict$summary$status)
+```
+
+Lipids excluded by `min_rank` appear in `result$chains$summary` with status
+`excluded_rank_below_X` (where X is the chosen threshold), making it easy to
+audit which lipids were filtered.
 
 ---
 
