@@ -753,7 +753,7 @@ plot_lsea <- function(
         right_add <- label_data_units + nudge_data_units
 
         bubble_radius_mm  <- 4        # approx max bubble radius in mm
-        left_add  <- (bubble_radius_mm / plot_width_mm) * x_range
+        left_add  <- max(x_range * 0.15, 0.20)
 
         p <- ggplot2::ggplot(
           dat,
@@ -866,7 +866,7 @@ plot_lsea <- function(
         right_add <- label_data_units + nudge_data_units
 
         bubble_radius_mm <- 4
-        left_add <- (bubble_radius_mm / plot_width_mm) * x_range
+        left_add <- max(x_range * 0.15, 0.20)
 
         p <- ggplot2::ggplot(
           dat,
