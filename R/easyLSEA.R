@@ -31,6 +31,11 @@
 #'   Default: \code{"internal"}.
 #' @param run_chains Logical(1). Whether to run fatty acid chain analysis
 #'   in addition to LSEA. Default: \code{TRUE}.
+#' @param min_rank Character(1). Minimum confidence rank for chain analysis.
+#'   Ranks are ordered \code{A > B > C > D > E > P}. Lipids with rank lower
+#'   than \code{min_rank} (and rank \code{"P"} or \code{NA}) are excluded
+#'   from chain parsing. Default: \code{"E"} (include all except P and NA).
+#'   Only used when \code{run_chains = TRUE} and a rank column is present.
 #' @param group_cols Character vector. Grouping columns to test in LSEA.
 #'   If \code{NULL} (default), uses the three standard levels:
 #'   \code{LipidClass}, \code{LipidCategory_LMAPS},
@@ -108,6 +113,7 @@ easyLSEA <- function(
     engine      = c("both", "ks", "fgsea"),
     annotator   = c("internal", "lipidAnnotator"),
     run_chains  = TRUE,
+    min_rank    = "E",
     group_cols  = NULL,
     min_n       = 3L,
     n_perm      = 2000L,
@@ -180,7 +186,8 @@ easyLSEA <- function(
       parse_lipid_chains(
         data      = annotated,
         lipid_col = lipid_col,
-        class_col = "LipidClass"
+        class_col = "LipidClass",
+        min_rank  = min_rank
       ),
       error = function(e) {
         warning("Chain analysis failed: ", conditionMessage(e),
