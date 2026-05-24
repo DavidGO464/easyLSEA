@@ -43,6 +43,10 @@
 #' @param plots Logical(1). Whether to generate \pkg{ggplot2} objects.
 #'   Set to \code{FALSE} to skip plotting and reduce runtime.
 #'   Default: \code{TRUE}.
+#' @param bubble_label Character vector. Which statistics to show next to
+#'   each bubble in the LSEA bubble plots. Any subset of \code{"FDR"},
+#'   \code{"DS"} (KS only), \code{"NES"} (fgsea only), and \code{"n"}.
+#'   Use fewer to shorten labels. Default: all four.
 #' @param output Character(1). Return format when both modules run:
 #'   \code{"combined"} returns a single \code{easyLSEA_result};
 #'   \code{"separate"} returns a named list with elements \code{lsea}
@@ -108,15 +112,17 @@ easyLSEA <- function(
     min_n       = 3L,
     n_perm      = 2000L,
     fgsea_nperm = 10000L,
-    plots       = TRUE,
-    output      = c("combined", "separate"),
-    seed        = 42L,
-    verbose     = TRUE
+    plots        = TRUE,
+    bubble_label = c("FDR", "DS", "NES", "n"),
+    output       = c("combined", "separate"),
+    seed         = 42L,
+    verbose      = TRUE
 ) {
 
   engine    <- match.arg(engine)
   annotator <- match.arg(annotator)
   output    <- match.arg(output)
+  bubble_label <- match.arg(bubble_label, several.ok = TRUE)
 
   call_time <- Sys.time()
 
@@ -193,9 +199,10 @@ easyLSEA <- function(
 
     plot_list$lsea <- tryCatch(
       plot_lsea(
-        lsea_result = lsea_out,
-        case_lbl    = case_lbl,
-        ref_lbl     = ref_lbl
+        lsea_result  = lsea_out,
+        case_lbl     = case_lbl,
+        ref_lbl      = ref_lbl,
+        bubble_label = bubble_label
       ),
       error = function(e) {
         warning("LSEA plot generation failed: ", conditionMessage(e),

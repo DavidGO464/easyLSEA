@@ -14,14 +14,20 @@
 #' @param dir Character(1). Base directory where the output folder will be
 #'   created. Default: current working directory (\code{"."}).
 #' @param prefix Character(1). Prefix for the output folder name. The folder
-#'   is named \code{<prefix>_<YYYY-MM-DD>/}. Default: \code{"easyLSEA"}.
+#'   is named \code{<prefix>_<case>_vs_<ref>_<YYYY-MM-DD_HHMM>/} when
+#'   comparison labels are available, otherwise
+#'   \code{<prefix>_<YYYY-MM-DD_HHMM>/}. Default: \code{"easyLSEA"}.
 #' @param format Character vector. One or more of \code{"csv"},
 #'   \code{"excel"}, \code{"pdf"}, \code{"png"}, \code{"html"}.
 #'   Default: \code{c("csv", "excel", "pdf")}.
 #' @param overwrite Logical(1). If \code{TRUE}, an existing output folder with
 #'   the same name is overwritten. Default: \code{FALSE}.
-#' @param plot_width Numeric(1). Plot width in inches. Default: \code{8}.
-#' @param plot_height Numeric(1). Plot height in inches. Default: \code{6}.
+#' @param plot_width Numeric(1) or \code{NULL}. Plot width in inches. If
+#'   \code{NULL} (default), width is auto-sized based on the number of lipid
+#'   sets in each plot. Pass a number to override for all plots.
+#' @param plot_height Numeric(1) or \code{NULL}. Plot height in inches. If
+#'   \code{NULL} (default), height is auto-sized per plot type. Pass a number
+#'   to override for all plots.
 #' @param plot_dpi Integer(1). Resolution for PNG output. Default: \code{300L}.
 #' @param verbose Logical(1). Print progress messages. Default: \code{TRUE}.
 #'
@@ -87,8 +93,8 @@ export_lsea <- function(
     prefix      = "easyLSEA",
     format      = c("csv", "excel", "pdf"),
     overwrite   = FALSE,
-    plot_width  = 8,
-    plot_height = 6,
+    plot_width  = NULL,
+    plot_height = NULL,
     plot_dpi    = 300L,
     verbose     = TRUE
 ) {
@@ -103,7 +109,18 @@ export_lsea <- function(
          call. = FALSE)
 
   # -- Create output folder ---------------------------------------------------
-  folder_name <- paste0(prefix, "_", format(Sys.Date(), "%Y-%m-%d"))
+  # Folder name: <prefix>_<case>_vs_<ref>_<YYYY-MM-DD_HHMM>
+  # Comparison labels are pulled from result$meta when available.
+  cmp_tag <- ""
+  if (inherits(result, "easyLSEA_result") &&
+      !is.null(result$meta$case_lbl) && !is.null(result$meta$ref_lbl)) {
+    # Sanitize labels for use in a path (no spaces/slashes)
+    safe_case <- gsub("[^A-Za-z0-9]+", "-", result$meta$case_lbl)
+    safe_ref  <- gsub("[^A-Za-z0-9]+", "-", result$meta$ref_lbl)
+    cmp_tag   <- paste0("_", safe_case, "_vs_", safe_ref)
+  }
+  stamp       <- format(Sys.time(), "%Y-%m-%d_%H%M")
+  folder_name <- paste0(prefix, cmp_tag, "_", stamp)
   out_dir     <- file.path(dir, folder_name)
 
   if (dir.exists(out_dir) && !overwrite)
@@ -246,18 +263,28 @@ export_lsea <- function(
         path <- file.path(sub, paste0(plt_name, ".", dev))
 
         tryCatch({
-          # Dynamic sizing: dist and bubble plots scale with number of groups
+          # Sizing: if the user passed plot_width/plot_height explicitly, use
+          # those. Otherwise auto-size based on number of groups (n_sets).
           n_sets   <- attr(plt, "n_sets")
           sig_only <- isTRUE(attr(plt, "sig_only"))
           is_bubble <- grepl("^bubble", plt_name)
-          w <- if (!is.null(n_sets) && is_bubble) {
-            max(8, 1 + n_sets * 0.45)    # bubble: labels are on the right
+
+          w <- if (!is.null(plot_width)) {
+            plot_width                              # user override
+          } else if (!is.null(n_sets) && is_bubble) {
+            max(8, 1 + n_sets * 0.45)               # bubble: right-side labels
           } else if (!is.null(n_sets)) {
-            max(8, 1 + n_sets * 0.7)     # dist: 2-line labels need wider spacing
-          } else plot_width
-          h <- if (!is.null(n_sets) && !is_bubble && sig_only) {
-            max(7, n_sets * 1.4)         # sig dist: taller so boxes aren't flat
-          } else plot_height
+            max(8, 1 + n_sets * 0.7)                # dist: 2-line labels
+          } else 8                                   # fallback default
+
+          h <- if (!is.null(plot_height)) {
+            plot_height                             # user override
+          } else if (!is.null(n_sets) && is_bubble) {
+            max(6, n_sets * 0.42)                   # bubble: vertical room
+          } else if (!is.null(n_sets) && !is_bubble) {
+            if (sig_only) max(7, n_sets * 1.4)      # sig dist: taller
+            else 8                                    # full dist
+          } else 6                                   # fallback default
 
           if (dev == "pdf") {
             grDevices::pdf(path, width = w, height = h)

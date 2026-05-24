@@ -674,12 +674,30 @@ run_lsea <- function(
 #' @export
 plot_lsea <- function(
     lsea_result,
-    which      = c("bubble_ks", "bubble_fgsea", "bubble_combined",
-                   "barplot", "running_sum"),
-    fdr_thresh = 0.05,
-    case_lbl   = "Case",
-    ref_lbl    = "Reference"
+    which        = c("bubble_ks", "bubble_fgsea", "bubble_combined",
+                     "barplot", "running_sum"),
+    fdr_thresh   = 0.05,
+    case_lbl     = "Case",
+    ref_lbl      = "Reference",
+    bubble_label = c("FDR", "DS", "NES", "n")
 ) {
+
+  bubble_label <- match.arg(bubble_label, several.ok = TRUE)
+
+  # Helper: build the per-bubble label string from selected components.
+  # KS bubbles can show FDR, DS, n; fgsea bubbles can show FDR, NES, n.
+  .bubble_lab <- function(parts, fdr = NULL, ds = NULL, nes = NULL, n = NULL) {
+    bits <- character(0)
+    if ("FDR" %in% parts && !is.null(fdr))
+      bits <- c(bits, paste0("FDR=", formatC(fdr, format = "e", digits = 1)))
+    if ("DS"  %in% parts && !is.null(ds))
+      bits <- c(bits, paste0("DS=", sprintf("%+.2f", ds)))
+    if ("NES" %in% parts && !is.null(nes))
+      bits <- c(bits, paste0("NES=", sprintf("%+.2f", nes)))
+    if ("n"   %in% parts && !is.null(n))
+      bits <- c(bits, paste0("n=", n))
+    paste(bits, collapse = "   ")
+  }
 
   plots <- list()
 
@@ -704,70 +722,74 @@ plot_lsea <- function(
       df  <- df_all[df_all$Level == lvl, ]
       lbl <- if (lvl %in% names(level_labels)) level_labels[[lvl]] else lvl
 
-      .make_bubble_ks <- function(dat, key_name) {
+      .make_bubble_ks <- function(dat, key_name, sig_only = FALSE) {
         if (nrow(dat) == 0L) return(NULL)
+        dat <- dat[order(dat$DirectionalScore), ]
+        dat$Group <- factor(dat$Group, levels = dat$Group)
         max_score <- max(abs(dat$DirectionalScore), na.rm = TRUE)
         p <- ggplot2::ggplot(
           dat,
-          ggplot2::aes(
-            x     = DirectionalScore,
-            y     = stats::reorder(Group, DirectionalScore),
-            size  = N_group,
-            color = direction,
-            alpha = sig
-          )
+          ggplot2::aes(x = DirectionalScore, y = Group,
+                       size = N_group, color = DirectionalScore)
         ) +
-          ggplot2::geom_point() +
-          ggplot2::geom_text(
-            ggplot2::aes(
-              label = paste0("FDR=", formatC(FDR_LSEA, format = "e", digits = 1),
-                             "  DS=", sprintf("%+.2f", DirectionalScore),
-                             "  n=", N_group)
-            ),
-            nudge_x  = max_score * 0.06,
-            hjust    = 0,
-            size     = 2.8,
-            fontface = "bold",
-            color    = "grey30",
-            show.legend = FALSE
-          ) +
-          ggplot2::scale_color_manual(
-            values = setNames(
-              c("#E63946", "#2166AC"),
-              c(paste0("Up in ", case_lbl), paste0("Up in ", ref_lbl))
-            )
-          ) +
-          ggplot2::scale_size_continuous(name = "Set size", range = c(2, 10)) +
-          ggplot2::scale_alpha_manual(values = c("TRUE" = 1, "FALSE" = 0.35),
-                                       guide = "none") +
           ggplot2::geom_vline(xintercept = 0, linetype = "dashed",
                                color = "grey60") +
-          ggplot2::coord_cartesian(clip = "off") +
-          ggplot2::labs(
-            title    = paste0("LSEA -- KS enrichment | ", key_name),
-            subtitle = paste0(case_lbl, " vs ", ref_lbl,
-                              "  |  FDR < ", fdr_thresh, " = opaque"),
-            x        = "DirectionalScore (Cohen's d)",
-            y        = NULL,
-            color    = "Direction"
+          ggplot2::geom_point(
+            ggplot2::aes(alpha = FDR_LSEA < fdr_thresh),
+            show.legend = TRUE
           ) +
-          ggplot2::theme_bw(base_size = 12) +
+          ggplot2::geom_text(
+            ggplot2::aes(
+              label = mapply(.bubble_lab,
+                             MoreArgs = list(parts = bubble_label),
+                             fdr = FDR_LSEA, ds = DirectionalScore, n = N_group)
+            ),
+            nudge_x = max_score * 0.06, hjust = 0,
+            size = 3.0, fontface = "bold", color = "grey25",
+            show.legend = FALSE
+          ) +
+          ggplot2::scale_x_continuous(
+            expand = ggplot2::expansion(mult = c(0.05, 0.45))
+          ) +
+          ggplot2::scale_color_gradient2(
+            low = "#2166AC", mid = "grey85", high = "#E63946",
+            midpoint = 0, name = "Directional\nScore"
+          ) +
+          ggplot2::scale_size_continuous(range = c(3, 12), name = "N lipids") +
+          ggplot2::scale_alpha_manual(
+            values = c("TRUE" = 0.9, "FALSE" = 0.35),
+            labels = c("TRUE"  = paste0("FDR < ", fdr_thresh),
+                       "FALSE" = paste0("FDR >= ", fdr_thresh)),
+            name   = "KS sig."
+          ) +
+          ggplot2::labs(
+            title    = paste0("LSEA (KS) \u00b7 ", key_name,
+                              if (sig_only) "  [significant sets only]" else ""),
+            subtitle = paste0(case_lbl, " vs ", ref_lbl,
+                              " \u00b7 Kolmogorov-Smirnov test \u00b7 BH FDR",
+                              if (sig_only) paste0(" \u00b7 FDR < ", fdr_thresh, " only")
+                              else paste0(" \u00b7 faded = FDR >= ", fdr_thresh)),
+            x = "Directional Score (standardized mean difference)", y = NULL
+          ) +
+          ggplot2::theme_bw(base_size = 11) +
           ggplot2::theme(
+            plot.title       = ggplot2::element_text(face = "bold", size = 12,
+                                                      hjust = 0.5),
+            plot.subtitle    = ggplot2::element_text(size = 9, hjust = 0.5,
+                                                      color = "grey50"),
+            axis.text.y      = ggplot2::element_text(size = 10, face = "bold"),
             panel.grid.minor = ggplot2::element_blank(),
-            plot.margin      = ggplot2::margin(t = 10, r = 120, b = 10, l = 10)
+            plot.margin      = ggplot2::margin(t = 8, r = 20, b = 8, l = 8)
           )
         attr(p, "n_sets") <- nrow(dat)
         p
       }
 
-      # All sets
       plots[[paste0("bubble_ks_", lbl)]] <- .make_bubble_ks(df, lbl)
-
-      # Sig only variant
       df_sig <- df[df$FDR_LSEA < fdr_thresh, ]
       if (nrow(df_sig) > 0L)
         plots[[paste0("bubble_ks_sig_", lbl)]] <- .make_bubble_ks(
-          df_sig, paste0(lbl, "_sig")
+          df_sig, lbl, sig_only = TRUE
         )
     }
   }
@@ -810,8 +832,9 @@ plot_lsea <- function(
           ) +
           ggplot2::geom_text(
             ggplot2::aes(
-              label = paste0("FDR=", formatC(FDR_fgsea, format = "e", digits = 1),
-                             "   n=", N_leading)
+              label = mapply(.bubble_lab,
+                             MoreArgs = list(parts = bubble_label),
+                             fdr = FDR_fgsea, nes = NES, n = N_leading)
             ),
             nudge_x = max_nes * 0.06, hjust = 0,
             size = 3.0, fontface = "bold", color = "grey25",
@@ -821,7 +844,7 @@ plot_lsea <- function(
             expand = ggplot2::expansion(mult = c(0.05, 0.45))
           ) +
           ggplot2::scale_color_gradient2(
-            low = "#2166AC", mid = "grey85", high = "#7B2D8B",
+            low = "#2166AC", mid = "grey85", high = "#E63946",
             midpoint = 0, name = "NES"
           ) +
           ggplot2::scale_size_continuous(range = c(3, 12), name = "N lipids") +
@@ -1018,7 +1041,7 @@ plot_distribution <- function(
   label_room    <- if (label_angle == 0) y_span * 0.45 else y_span * 0.55
   y_lbl         <- y_top + label_gap
   y_upper_limit <- y_top + label_room
-  y_lower_limit <- y_range[1] - y_span * 0.08
+  y_lower_limit <- y_range[1] - y_span * 0.18
 
   # -- FDR labels for significant sets ----------------------------------------
   fdr_labels <- sig_meta[sig_meta$.is_sig_any & sig_meta$Group %in% valid_groups, ]
