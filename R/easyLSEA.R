@@ -204,6 +204,49 @@ easyLSEA <- function(
       }
     )
 
+    # Distribution boxplots — one per grouping level
+    dist_plots <- list()
+    for (gcol in group_cols) {
+      lbl <- switch(gcol,
+        LipidClass               = "01_Class",
+        LipidCategory_LMAPS      = "02_LMAPS",
+        LipidCategory_functional = "03_Functional",
+        gcol
+      )
+      key <- paste0("dist_", lbl)
+      dist_plots[[key]] <- tryCatch(
+        plot_distribution(
+          data        = annotated,
+          lsea_result = lsea_out,
+          group_col   = gcol,
+          fc_col      = fc_col,
+          case_lbl    = case_lbl,
+          ref_lbl     = ref_lbl
+        ),
+        error = function(e) {
+          warning("Distribution plot failed for ", gcol, ": ",
+                  conditionMessage(e), call. = FALSE)
+          NULL
+        }
+      )
+      # sig_only variant
+      key_sig <- paste0("dist_sig_", lbl)
+      dist_plots[[key_sig]] <- tryCatch(
+        plot_distribution(
+          data        = annotated,
+          lsea_result = lsea_out,
+          group_col   = gcol,
+          fc_col      = fc_col,
+          case_lbl    = case_lbl,
+          ref_lbl     = ref_lbl,
+          sig_only    = TRUE
+        ),
+        error = function(e) NULL
+      )
+    }
+    plot_list$lsea <- c(plot_list$lsea,
+                        Filter(Negate(is.null), dist_plots))
+
     if (!is.null(chains_out) && !is.null(chains_out$parsed) &&
         nrow(chains_out$parsed) > 0L) {
       plot_list$chains <- tryCatch(

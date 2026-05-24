@@ -212,10 +212,17 @@ export_lsea <- function(
 
     # Subdirectory routing: lsea/ | chains/tile/ | chains/trend/
     .plot_subdir <- function(name) {
-      if (grepl("^(bubble|bar|dot)", name))          file.path(plt_dir, "lsea")
-      else if (grepl("^tile_",       name))          file.path(plt_dir, "chains", "tile")
-      else if (grepl("^trend_",      name))          file.path(plt_dir, "chains", "trend")
-      else                                           plt_dir
+      if (grepl("^bubble.*01_Class",      name)) file.path(plt_dir, "lsea", "01_Class")
+      else if (grepl("^bubble.*02_LMAPS", name)) file.path(plt_dir, "lsea", "02_LMAPS")
+      else if (grepl("^bubble.*03_Func",  name)) file.path(plt_dir, "lsea", "03_Functional")
+      else if (grepl("^dist.*01_Class",   name)) file.path(plt_dir, "lsea", "01_Class")
+      else if (grepl("^dist.*02_LMAPS",   name)) file.path(plt_dir, "lsea", "02_LMAPS")
+      else if (grepl("^dist.*03_Func",    name)) file.path(plt_dir, "lsea", "03_Functional")
+      else if (grepl("^bubble",           name)) file.path(plt_dir, "lsea")
+      else if (grepl("^dist_",            name)) file.path(plt_dir, "lsea")
+      else if (grepl("^tile_",            name)) file.path(plt_dir, "chains", "tile")
+      else if (grepl("^trend_",           name)) file.path(plt_dir, "chains", "trend")
+      else                                       plt_dir
     }
 
     # Build named list: lsea plots + chain plots

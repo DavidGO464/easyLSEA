@@ -683,96 +683,383 @@ plot_lsea <- function(
 
   plots <- list()
 
-  # -- KS bubble plot ----------------------------------------------------------
+  # -- KS bubble plot — one plot per analysis level ----------------------------
   if ("bubble_ks" %in% which && !is.null(lsea_result$ks)) {
-    df <- lsea_result$ks
-    df <- df[!is.na(df$KS_pval), ]
-    df$sig       <- df$FDR_LSEA < fdr_thresh
-    df$log_fdr   <- -log10(df$FDR_LSEA + 1e-300)
-    df$direction <- ifelse(df$DirectionalScore > 0,
-                           paste0("Up in ", case_lbl),
-                           paste0("Up in ", ref_lbl))
+    df_all <- lsea_result$ks
+    df_all <- df_all[!is.na(df_all$KS_pval), ]
+    df_all$sig       <- df_all$FDR_LSEA < fdr_thresh
+    df_all$log_fdr   <- -log10(df_all$FDR_LSEA + 1e-300)
+    df_all$direction <- ifelse(df_all$DirectionalScore > 0,
+                               paste0("Up in ", case_lbl),
+                               paste0("Up in ", ref_lbl))
 
-    plots$bubble_ks <- ggplot2::ggplot(
-      df,
-      ggplot2::aes(
-        x     = DirectionalScore,
-        y     = stats::reorder(Group, DirectionalScore),
-        size  = N_group,
-        color = direction,
-        alpha = sig
-      )
-    ) +
-      ggplot2::geom_point() +
-      ggplot2::scale_color_manual(
-        values = setNames(
-          c("#E63946", "#2166AC"),
-          c(paste0("Up in ", case_lbl), paste0("Up in ", ref_lbl))
+    levels_ks <- unique(df_all$Level)
+    level_labels <- c(
+      LipidClass                 = "01_Class",
+      LipidCategory_LMAPS        = "02_LMAPS",
+      LipidCategory_functional   = "03_Functional"
+    )
+
+    for (lvl in levels_ks) {
+      df  <- df_all[df_all$Level == lvl, ]
+      lbl <- if (lvl %in% names(level_labels)) level_labels[[lvl]] else lvl
+      key <- paste0("bubble_ks_", lbl)
+
+      plots[[key]] <- ggplot2::ggplot(
+        df,
+        ggplot2::aes(
+          x     = DirectionalScore,
+          y     = stats::reorder(Group, DirectionalScore),
+          size  = N_group,
+          color = direction,
+          alpha = sig
         )
       ) +
-      ggplot2::scale_size_continuous(name = "Set size", range = c(2, 10)) +
-      ggplot2::scale_alpha_manual(values = c("TRUE" = 1, "FALSE" = 0.35),
-                                   guide = "none") +
-      ggplot2::geom_vline(xintercept = 0, linetype = "dashed",
-                           color = "grey60") +
-      ggplot2::labs(
-        title    = "LSEA -- KS enrichment",
-        subtitle = paste0(case_lbl, " vs ", ref_lbl,
-                          "  |  FDR < ", fdr_thresh, " = opaque"),
-        x        = "DirectionalScore (Cohen's d)",
-        y        = NULL,
-        color    = "Direction"
-      ) +
-      ggplot2::theme_bw(base_size = 12) +
-      ggplot2::theme(panel.grid.minor = ggplot2::element_blank())
+        ggplot2::geom_point() +
+        ggplot2::scale_color_manual(
+          values = setNames(
+            c("#E63946", "#2166AC"),
+            c(paste0("Up in ", case_lbl), paste0("Up in ", ref_lbl))
+          )
+        ) +
+        ggplot2::scale_size_continuous(name = "Set size", range = c(2, 10)) +
+        ggplot2::scale_alpha_manual(values = c("TRUE" = 1, "FALSE" = 0.35),
+                                     guide = "none") +
+        ggplot2::geom_vline(xintercept = 0, linetype = "dashed",
+                             color = "grey60") +
+        ggplot2::labs(
+          title    = paste0("LSEA -- KS enrichment | ", lbl),
+          subtitle = paste0(case_lbl, " vs ", ref_lbl,
+                            "  |  FDR < ", fdr_thresh, " = opaque"),
+          x        = "DirectionalScore (Cohen's d)",
+          y        = NULL,
+          color    = "Direction"
+        ) +
+        ggplot2::theme_bw(base_size = 12) +
+        ggplot2::theme(panel.grid.minor = ggplot2::element_blank())
+    }
   }
 
-  # -- fgsea bubble plot -------------------------------------------------------
+  # -- fgsea bubble plot — one plot per analysis level -------------------------
   if ("bubble_fgsea" %in% which && !is.null(lsea_result$fgsea)) {
-    df <- lsea_result$fgsea
-    df <- df[!is.na(df$NES), ]
-    df$sig       <- df$FDR_fgsea < fdr_thresh
-    df$direction <- ifelse(df$NES > 0,
-                           paste0("Up in ", case_lbl),
-                           paste0("Up in ", ref_lbl))
+    df_all <- lsea_result$fgsea
+    df_all <- df_all[!is.na(df_all$NES), ]
+    df_all$sig       <- df_all$FDR_fgsea < fdr_thresh
+    df_all$direction <- ifelse(df_all$NES > 0,
+                               paste0("Up in ", case_lbl),
+                               paste0("Up in ", ref_lbl))
 
-    plots$bubble_fgsea <- ggplot2::ggplot(
-      df,
-      ggplot2::aes(
-        x     = NES,
-        y     = stats::reorder(Group, NES),
-        size  = N_leading,
-        color = direction,
-        alpha = sig
-      )
-    ) +
-      ggplot2::geom_point() +
-      ggplot2::scale_color_manual(
-        values = setNames(
-          c("#7B2D8B", "#2166AC"),
-          c(paste0("Up in ", case_lbl), paste0("Up in ", ref_lbl))
+    levels_fgsea <- unique(df_all$Level)
+    level_labels <- c(
+      LipidClass                 = "01_Class",
+      LipidCategory_LMAPS        = "02_LMAPS",
+      LipidCategory_functional   = "03_Functional"
+    )
+
+    for (lvl in levels_fgsea) {
+      df  <- df_all[df_all$Level == lvl, ]
+      lbl <- if (lvl %in% names(level_labels)) level_labels[[lvl]] else lvl
+      key <- paste0("bubble_fgsea_", lbl)
+
+      plots[[key]] <- ggplot2::ggplot(
+        df,
+        ggplot2::aes(
+          x     = NES,
+          y     = stats::reorder(Group, NES),
+          size  = N_leading,
+          color = direction,
+          alpha = sig
         )
       ) +
-      ggplot2::scale_size_continuous(name = "Leading edge n",
-                                      range = c(2, 10)) +
-      ggplot2::scale_alpha_manual(values = c("TRUE" = 1, "FALSE" = 0.35),
-                                   guide = "none") +
-      ggplot2::geom_vline(xintercept = 0, linetype = "dashed",
-                           color = "grey60") +
-      ggplot2::labs(
-        title    = "LSEA -- fgsea enrichment",
-        subtitle = paste0(case_lbl, " vs ", ref_lbl,
-                          "  |  FDR < ", fdr_thresh, " = opaque"),
-        x        = "NES (normalized enrichment score)",
-        y        = NULL,
-        color    = "Direction"
-      ) +
-      ggplot2::theme_bw(base_size = 12) +
-      ggplot2::theme(panel.grid.minor = ggplot2::element_blank())
+        ggplot2::geom_point() +
+        ggplot2::scale_color_manual(
+          values = setNames(
+            c("#7B2D8B", "#2166AC"),
+            c(paste0("Up in ", case_lbl), paste0("Up in ", ref_lbl))
+          )
+        ) +
+        ggplot2::scale_size_continuous(name = "Leading edge n",
+                                        range = c(2, 10)) +
+        ggplot2::scale_alpha_manual(values = c("TRUE" = 1, "FALSE" = 0.35),
+                                     guide = "none") +
+        ggplot2::geom_vline(xintercept = 0, linetype = "dashed",
+                             color = "grey60") +
+        ggplot2::labs(
+          title    = paste0("LSEA -- fgsea enrichment | ", lbl),
+          subtitle = paste0(case_lbl, " vs ", ref_lbl,
+                            "  |  FDR < ", fdr_thresh, " = opaque"),
+          x        = "NES (normalized enrichment score)",
+          y        = NULL,
+          color    = "Direction"
+        ) +
+        ggplot2::theme_bw(base_size = 12) +
+        ggplot2::theme(panel.grid.minor = ggplot2::element_blank())
+    }
   }
 
   if (length(plots) == 0L)
     message("No plots generated -- check 'which' and that results are not NULL.")
 
   plots
+}
+
+
+#' Distribution enrichment boxplot per lipid set
+#'
+#' Produces a boxplot of logFC distributions for each lipid set, with jittered
+#' individual lipid points, FDR/DS/NES labels for significant sets, and
+#' red borders for significant sets. When \code{engine = "both"} (KS + fgsea),
+#' fill colour encodes convergence (KS only, fgsea only, or KS+fgsea).
+#'
+#' @param data A \code{data.frame} with at least \code{fc_col} and the grouping
+#'   column (e.g. \code{LipidClass}).
+#' @param lsea_result A named list as returned by \code{\link{run_lsea}},
+#'   with elements \code{ks}, \code{fgsea}, and/or \code{combined}.
+#' @param group_col Character(1). Grouping column name
+#'   (e.g. \code{"LipidClass"}).
+#' @param fc_col Character(1). Column with log fold-change values.
+#'   Default: \code{"logFC"}.
+#' @param case_lbl Character(1). Label for the case group. Default:
+#'   \code{"Case"}.
+#' @param ref_lbl Character(1). Label for the reference group. Default:
+#'   \code{"Control"}.
+#' @param fdr_thresh Numeric(1). FDR threshold for significance.
+#'   Default: \code{0.05}.
+#' @param min_n Integer(1). Minimum number of lipids per set to include.
+#'   Default: \code{3L}.
+#' @param sig_only Logical(1). If \code{TRUE}, show only significant sets.
+#'   Default: \code{FALSE}.
+#' @param label_angle Numeric(1). Angle for FDR labels. \code{0} = horizontal
+#'   (default); \code{90} = vertical (useful when many groups).
+#'
+#' @return A \code{ggplot} object, or \code{NULL} if no groups pass
+#'   \code{min_n}.
+#'
+#' @importFrom ggplot2 ggplot aes geom_hline geom_boxplot geom_jitter geom_label scale_color_manual coord_cartesian labs theme_bw theme element_text element_blank unit
+#' @importFrom stats median IQR quantile
+#'
+#' @export
+plot_distribution <- function(
+    data,
+    lsea_result,
+    group_col,
+    fc_col      = "logFC",
+    case_lbl    = "Case",
+    ref_lbl     = "Control",
+    fdr_thresh  = 0.05,
+    min_n       = 3L,
+    sig_only    = FALSE,
+    label_angle = 0
+) {
+
+  # -- Detect available engines -----------------------------------------------
+  has_ks    <- !is.null(lsea_result$ks)
+  has_fgsea <- !is.null(lsea_result$fgsea)
+  has_both  <- has_ks && has_fgsea && !is.null(lsea_result$combined)
+
+  # -- Convergence palette ----------------------------------------------------
+  pal_conv <- c(
+    "KS+fgsea [strongest]"         = "#E63946",
+    "KS only [distributed effect]" = "#0096C7",
+    "fgsea only [extreme-driven]"  = "#7B2D8B",
+    "Neither"                      = "grey55"
+  )
+
+  # -- Build per-group metadata -----------------------------------------------
+  if (has_both) {
+    sig_meta <- lsea_result$combined
+    sig_meta$.is_sig_any <- (!is.na(sig_meta$FDR_LSEA)  & sig_meta$FDR_LSEA  < fdr_thresh) |
+                            (!is.na(sig_meta$FDR_fgsea) & sig_meta$FDR_fgsea < fdr_thresh)
+    sig_meta <- merge(sig_meta,
+                      lsea_result$ks[, c("Group", "DirectionalScore", "N_group", "Level")],
+                      by = "Group", all.x = TRUE)
+
+  } else if (has_ks) {
+    sig_meta <- lsea_result$ks[lsea_result$ks$Level == group_col, ]
+    sig_meta$Convergence  <- ifelse(
+      !is.na(sig_meta$FDR_LSEA) & sig_meta$FDR_LSEA < fdr_thresh,
+      "KS only [distributed effect]", "Neither"
+    )
+    sig_meta$FDR_fgsea    <- NA_real_
+    sig_meta$NES          <- NA_real_
+    sig_meta$.is_sig_any  <- !is.na(sig_meta$FDR_LSEA) & sig_meta$FDR_LSEA < fdr_thresh
+
+  } else if (has_fgsea) {
+    sig_meta <- lsea_result$fgsea[lsea_result$fgsea$Level == group_col, ]
+    sig_meta$Convergence  <- ifelse(
+      !is.na(sig_meta$FDR_fgsea) & sig_meta$FDR_fgsea < fdr_thresh,
+      "fgsea only [extreme-driven]", "Neither"
+    )
+    sig_meta$FDR_LSEA         <- NA_real_
+    sig_meta$DirectionalScore <- NA_real_
+    sig_meta$.is_sig_any      <- !is.na(sig_meta$FDR_fgsea) & sig_meta$FDR_fgsea < fdr_thresh
+
+  } else {
+    message("plot_distribution: no LSEA results found.")
+    return(NULL)
+  }
+
+  # Filter to current level if combined
+  if (has_both && "Level" %in% names(sig_meta))
+    sig_meta <- sig_meta[sig_meta$Level == group_col, ]
+
+  # Valid groups (min_n)
+  valid_groups <- sig_meta$Group[!is.na(sig_meta$N_group) &
+                                   sig_meta$N_group >= min_n]
+
+  # -- Prepare plot data ------------------------------------------------------
+  plot_df <- data[!is.na(data[[fc_col]]) & !is.na(data[[group_col]]), ]
+  plot_df$Group <- as.character(plot_df[[group_col]])
+  plot_df <- merge(plot_df,
+                   sig_meta[, intersect(names(sig_meta),
+                                        c("Group", "Convergence", ".is_sig_any",
+                                          "FDR_LSEA", "FDR_fgsea", "NES",
+                                          "DirectionalScore", "N_group"))],
+                   by = "Group", all.x = TRUE)
+
+  plot_df$Convergence  <- ifelse(is.na(plot_df$Convergence),  "Neither", plot_df$Convergence)
+  plot_df$.is_sig_any  <- ifelse(is.na(plot_df$.is_sig_any),  FALSE,     plot_df$.is_sig_any)
+  plot_df <- plot_df[plot_df$Group %in% valid_groups, ]
+
+  if (sig_only) plot_df <- plot_df[plot_df$.is_sig_any, ]
+  if (nrow(plot_df) == 0L) {
+    message("plot_distribution: no groups with n >= ", min_n, " for ", group_col)
+    return(NULL)
+  }
+
+  # -- Order groups by median logFC -------------------------------------------
+  med_order <- tapply(plot_df[[fc_col]], plot_df$Group, median, na.rm = TRUE)
+  set_order <- names(sort(med_order))
+  plot_df$Group <- factor(plot_df$Group, levels = set_order)
+
+  # -- Y axis limits with label room ------------------------------------------
+  y_range      <- range(plot_df[[fc_col]], na.rm = TRUE)
+  y_span       <- diff(y_range)
+  y_whisker_max <- max(tapply(plot_df[[fc_col]], plot_df$Group, function(x) {
+    quantile(x, 0.75, na.rm = TRUE) + 1.5 * IQR(x, na.rm = TRUE)
+  }), na.rm = TRUE)
+  y_top         <- max(y_range[2], y_whisker_max, na.rm = TRUE)
+  label_gap     <- y_span * 0.08
+  label_room    <- if (label_angle == 0) y_span * 0.22 else y_span * 0.32
+  y_lbl         <- y_top + label_gap
+  y_upper_limit <- y_top + label_room
+  y_lower_limit <- y_range[1] - y_span * 0.08
+
+  # -- FDR labels for significant sets ----------------------------------------
+  fdr_labels <- sig_meta[sig_meta$.is_sig_any & sig_meta$Group %in% valid_groups, ]
+  if (nrow(fdr_labels) > 0) {
+    fdr_labels$fdr_val <- ifelse(
+      fdr_labels$Convergence == "fgsea only [extreme-driven]",
+      fdr_labels$FDR_fgsea,
+      fdr_labels$FDR_LSEA
+    )
+    fdr_labels$label <- mapply(function(conv, fdr, ds, nes) {
+      fdr_str <- formatC(fdr, format = "e", digits = 1)
+      if (conv == "fgsea only [extreme-driven]") {
+        sprintf("FDR=%s\nNES=%+.2f", fdr_str, nes)
+      } else if (conv == "KS+fgsea [strongest]") {
+        sprintf("FDR=%s\nDS=%+.2f\nNES=%+.2f", fdr_str, ds, nes)
+      } else {
+        sprintf("FDR=%s\nDS=%+.2f", fdr_str, ds)
+      }
+    }, fdr_labels$Convergence, fdr_labels$fdr_val,
+       fdr_labels$DirectionalScore, fdr_labels$NES)
+
+    fdr_labels$Group <- factor(fdr_labels$Group, levels = set_order)
+    fdr_labels$y_lbl <- y_lbl
+  }
+
+  # -- Build plot -------------------------------------------------------------
+  p <- ggplot2::ggplot(plot_df,
+                       ggplot2::aes(x = Group, y = .data[[fc_col]])) +
+    ggplot2::geom_hline(yintercept = 0, linetype = "dashed",
+                        color = "grey45", linewidth = 0.5)
+
+  # Boxplot layers: non-sig (thin border) then sig (red border)
+  avail_conv <- names(pal_conv)
+  for (cat in avail_conv) {
+    df_ns <- plot_df[plot_df$Convergence == cat & !plot_df$.is_sig_any, ]
+    if (nrow(df_ns) > 0)
+      p <- p + ggplot2::geom_boxplot(
+        data = df_ns, color = pal_conv[[cat]], fill = "white",
+        linewidth = 0.38, outlier.shape = NA, width = 0.65
+      )
+    df_s <- plot_df[plot_df$Convergence == cat & plot_df$.is_sig_any, ]
+    if (nrow(df_s) > 0)
+      p <- p + ggplot2::geom_boxplot(
+        data = df_s, color = "#E63946",
+        fill = adjustcolor(pal_conv[[cat]], alpha.f = 0.13),
+        linewidth = 1.1, outlier.shape = NA, width = 0.65
+      )
+  }
+
+  # Jittered points
+  p <- p + ggplot2::geom_jitter(
+    ggplot2::aes(color = Convergence),
+    width = 0.18, size = 0.85, alpha = 0.42
+  )
+
+  # FDR labels
+  if (nrow(fdr_labels) > 0)
+    p <- p + ggplot2::geom_label(
+      data          = fdr_labels,
+      ggplot2::aes(x = Group, y = y_lbl, label = label),
+      angle         = label_angle,
+      hjust         = if (label_angle == 90) 0 else 0.5,
+      vjust         = 0,
+      size          = if (label_angle == 0) 3.2 else 3.0,
+      color         = "#E63946",
+      fontface      = "bold",
+      fill          = "white",
+      label.size    = 0.15,
+      label.padding = ggplot2::unit(0.20, "lines"),
+      inherit.aes   = FALSE
+    )
+
+  # Active palette — drop unused levels
+  used_conv <- unique(plot_df$Convergence)
+  p <- p +
+    ggplot2::scale_color_manual(
+      values = pal_conv[names(pal_conv) %in% used_conv],
+      drop   = TRUE, name = "Convergence"
+    ) +
+    ggplot2::coord_cartesian(
+      ylim = c(y_lower_limit, y_upper_limit), clip = "off"
+    ) +
+    ggplot2::labs(
+      title    = paste0(case_lbl, " - ", ref_lbl),
+      subtitle = paste0(
+        "Distribution LSEA \u00b7 ", group_col,
+        if (sig_only) " \u00b7 Significant sets only" else "",
+        " \u00b7 Red border = significant \u00b7 Fill = detection engine"
+      ),
+      x       = NULL,
+      y       = expression(log[2]*FC),
+      caption = paste0(
+        "Red border (lw 1.1) = FDR < ", fdr_thresh,
+        " \u00b7 Fill: red = KS+fgsea \u00b7 celeste = KS only \u00b7 purple = fgsea only",
+        "\nDS = DirectionalScore (standardized mean diff)"
+      )
+    ) +
+    ggplot2::theme_bw(base_size = 11) +
+    ggplot2::theme(
+      plot.title         = ggplot2::element_text(face = "bold", size = 13, hjust = 0.5),
+      plot.subtitle      = ggplot2::element_text(size = 9, hjust = 0.5, color = "grey45"),
+      plot.caption       = ggplot2::element_text(size = 7, color = "grey55", hjust = 0),
+      axis.text.x        = ggplot2::element_text(angle = 40, hjust = 1,
+                                                  size = 9, face = "bold"),
+      axis.text.y        = ggplot2::element_text(size = 9),
+      panel.grid.major.y = ggplot2::element_line(color = "grey93"),
+      panel.grid.minor   = ggplot2::element_blank(),
+      legend.position    = "bottom",
+      legend.title       = ggplot2::element_text(face = "bold", size = 9),
+      legend.text        = ggplot2::element_text(size = 8),
+      plot.margin        = ggplot2::margin(t = 35, r = 12, b = 10, l = 12)
+    ) +
+    ggplot2::guides(color = ggplot2::guide_legend(
+      nrow         = 2,
+      override.aes = list(linewidth = 1.1, fill = "white", size = 3.5)
+    ))
+
+  p
 }
