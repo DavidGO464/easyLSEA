@@ -703,40 +703,72 @@ plot_lsea <- function(
     for (lvl in levels_ks) {
       df  <- df_all[df_all$Level == lvl, ]
       lbl <- if (lvl %in% names(level_labels)) level_labels[[lvl]] else lvl
-      key <- paste0("bubble_ks_", lbl)
 
-      plots[[key]] <- ggplot2::ggplot(
-        df,
-        ggplot2::aes(
-          x     = DirectionalScore,
-          y     = stats::reorder(Group, DirectionalScore),
-          size  = N_group,
-          color = direction,
-          alpha = sig
-        )
-      ) +
-        ggplot2::geom_point() +
-        ggplot2::scale_color_manual(
-          values = setNames(
-            c("#E63946", "#2166AC"),
-            c(paste0("Up in ", case_lbl), paste0("Up in ", ref_lbl))
+      .make_bubble_ks <- function(dat, key_name) {
+        if (nrow(dat) == 0L) return(NULL)
+        max_score <- max(abs(dat$DirectionalScore), na.rm = TRUE)
+        p <- ggplot2::ggplot(
+          dat,
+          ggplot2::aes(
+            x     = DirectionalScore,
+            y     = stats::reorder(Group, DirectionalScore),
+            size  = N_group,
+            color = direction,
+            alpha = sig
           )
         ) +
-        ggplot2::scale_size_continuous(name = "Set size", range = c(2, 10)) +
-        ggplot2::scale_alpha_manual(values = c("TRUE" = 1, "FALSE" = 0.35),
-                                     guide = "none") +
-        ggplot2::geom_vline(xintercept = 0, linetype = "dashed",
-                             color = "grey60") +
-        ggplot2::labs(
-          title    = paste0("LSEA -- KS enrichment | ", lbl),
-          subtitle = paste0(case_lbl, " vs ", ref_lbl,
-                            "  |  FDR < ", fdr_thresh, " = opaque"),
-          x        = "DirectionalScore (Cohen's d)",
-          y        = NULL,
-          color    = "Direction"
-        ) +
-        ggplot2::theme_bw(base_size = 12) +
-        ggplot2::theme(panel.grid.minor = ggplot2::element_blank())
+          ggplot2::geom_point() +
+          ggplot2::geom_text(
+            ggplot2::aes(
+              label = paste0("FDR=", formatC(FDR_LSEA, format = "e", digits = 1),
+                             "  DS=", sprintf("%+.2f", DirectionalScore),
+                             "  n=", N_group)
+            ),
+            nudge_x  = max_score * 0.06,
+            hjust    = 0,
+            size     = 2.8,
+            fontface = "bold",
+            color    = "grey30",
+            show.legend = FALSE
+          ) +
+          ggplot2::scale_color_manual(
+            values = setNames(
+              c("#E63946", "#2166AC"),
+              c(paste0("Up in ", case_lbl), paste0("Up in ", ref_lbl))
+            )
+          ) +
+          ggplot2::scale_size_continuous(name = "Set size", range = c(2, 10)) +
+          ggplot2::scale_alpha_manual(values = c("TRUE" = 1, "FALSE" = 0.35),
+                                       guide = "none") +
+          ggplot2::geom_vline(xintercept = 0, linetype = "dashed",
+                               color = "grey60") +
+          ggplot2::coord_cartesian(clip = "off") +
+          ggplot2::labs(
+            title    = paste0("LSEA -- KS enrichment | ", key_name),
+            subtitle = paste0(case_lbl, " vs ", ref_lbl,
+                              "  |  FDR < ", fdr_thresh, " = opaque"),
+            x        = "DirectionalScore (Cohen's d)",
+            y        = NULL,
+            color    = "Direction"
+          ) +
+          ggplot2::theme_bw(base_size = 12) +
+          ggplot2::theme(
+            panel.grid.minor = ggplot2::element_blank(),
+            plot.margin      = ggplot2::margin(t = 10, r = 120, b = 10, l = 10)
+          )
+        attr(p, "n_sets") <- nrow(dat)
+        p
+      }
+
+      # All sets
+      plots[[paste0("bubble_ks_", lbl)]] <- .make_bubble_ks(df, lbl)
+
+      # Sig only variant
+      df_sig <- df[df$FDR_LSEA < fdr_thresh, ]
+      if (nrow(df_sig) > 0L)
+        plots[[paste0("bubble_ks_sig_", lbl)]] <- .make_bubble_ks(
+          df_sig, paste0(lbl, "_sig")
+        )
     }
   }
 
@@ -759,41 +791,74 @@ plot_lsea <- function(
     for (lvl in levels_fgsea) {
       df  <- df_all[df_all$Level == lvl, ]
       lbl <- if (lvl %in% names(level_labels)) level_labels[[lvl]] else lvl
-      key <- paste0("bubble_fgsea_", lbl)
 
-      plots[[key]] <- ggplot2::ggplot(
-        df,
-        ggplot2::aes(
-          x     = NES,
-          y     = stats::reorder(Group, NES),
-          size  = N_leading,
-          color = direction,
-          alpha = sig
-        )
-      ) +
-        ggplot2::geom_point() +
-        ggplot2::scale_color_manual(
-          values = setNames(
-            c("#7B2D8B", "#2166AC"),
-            c(paste0("Up in ", case_lbl), paste0("Up in ", ref_lbl))
+      .make_bubble_fgsea <- function(dat, key_name, sig_only = FALSE) {
+        dat <- dat[!is.na(dat$NES), ]
+        if (nrow(dat) == 0L) return(NULL)
+        dat <- dat[order(dat$NES), ]
+        dat$Group <- factor(dat$Group, levels = dat$Group)
+        max_nes <- max(abs(dat$NES), na.rm = TRUE)
+        p <- ggplot2::ggplot(
+          dat,
+          ggplot2::aes(x = NES, y = Group, size = N_leading, color = NES)
+        ) +
+          ggplot2::geom_vline(xintercept = 0, linetype = "dashed",
+                               color = "grey60") +
+          ggplot2::geom_point(
+            ggplot2::aes(alpha = FDR_fgsea < fdr_thresh),
+            show.legend = TRUE
+          ) +
+          ggplot2::geom_text(
+            ggplot2::aes(
+              label = paste0("FDR=", formatC(FDR_fgsea, format = "e", digits = 1),
+                             "   n=", N_leading)
+            ),
+            nudge_x = max_nes * 0.06, hjust = 0,
+            size = 3.0, fontface = "bold", color = "grey25",
+            show.legend = FALSE
+          ) +
+          ggplot2::scale_x_continuous(
+            expand = ggplot2::expansion(mult = c(0.05, 0.45))
+          ) +
+          ggplot2::scale_color_gradient2(
+            low = "#2166AC", mid = "grey85", high = "#7B2D8B",
+            midpoint = 0, name = "NES"
+          ) +
+          ggplot2::scale_size_continuous(range = c(3, 12), name = "N lipids") +
+          ggplot2::scale_alpha_manual(
+            values = c("TRUE" = 0.9, "FALSE" = 0.35),
+            labels = c("TRUE"  = paste0("FDR < ", fdr_thresh),
+                       "FALSE" = paste0("FDR >= ", fdr_thresh)),
+            name   = "fgsea sig."
+          ) +
+          ggplot2::labs(
+            title    = paste0("LSEA (fgsea) \u00b7 ", key_name,
+                              if (sig_only) "  [significant sets only]" else ""),
+            subtitle = paste0(case_lbl, " vs ", ref_lbl, " \u00b7 fgsea \u00b7 BH FDR",
+                              if (sig_only) paste0(" \u00b7 FDR < ", fdr_thresh, " only")
+                              else paste0(" \u00b7 faded = FDR >= ", fdr_thresh)),
+            x = "NES (Normalized Enrichment Score)", y = NULL
+          ) +
+          ggplot2::theme_bw(base_size = 11) +
+          ggplot2::theme(
+            plot.title       = ggplot2::element_text(face = "bold", size = 12,
+                                                      hjust = 0.5),
+            plot.subtitle    = ggplot2::element_text(size = 9, hjust = 0.5,
+                                                      color = "grey50"),
+            axis.text.y      = ggplot2::element_text(size = 10, face = "bold"),
+            panel.grid.minor = ggplot2::element_blank(),
+            plot.margin      = ggplot2::margin(t = 8, r = 20, b = 8, l = 8)
           )
-        ) +
-        ggplot2::scale_size_continuous(name = "Leading edge n",
-                                        range = c(2, 10)) +
-        ggplot2::scale_alpha_manual(values = c("TRUE" = 1, "FALSE" = 0.35),
-                                     guide = "none") +
-        ggplot2::geom_vline(xintercept = 0, linetype = "dashed",
-                             color = "grey60") +
-        ggplot2::labs(
-          title    = paste0("LSEA -- fgsea enrichment | ", lbl),
-          subtitle = paste0(case_lbl, " vs ", ref_lbl,
-                            "  |  FDR < ", fdr_thresh, " = opaque"),
-          x        = "NES (normalized enrichment score)",
-          y        = NULL,
-          color    = "Direction"
-        ) +
-        ggplot2::theme_bw(base_size = 12) +
-        ggplot2::theme(panel.grid.minor = ggplot2::element_blank())
+        attr(p, "n_sets") <- nrow(dat)
+        p
+      }
+
+      plots[[paste0("bubble_fgsea_", lbl)]] <- .make_bubble_fgsea(df, lbl)
+      df_sig <- df[df$FDR_fgsea < fdr_thresh, ]
+      if (nrow(df_sig) > 0L)
+        plots[[paste0("bubble_fgsea_sig_", lbl)]] <- .make_bubble_fgsea(
+          df_sig, lbl, sig_only = TRUE
+        )
     }
   }
 
@@ -870,9 +935,19 @@ plot_distribution <- function(
     sig_meta <- lsea_result$combined
     sig_meta$.is_sig_any <- (!is.na(sig_meta$FDR_LSEA)  & sig_meta$FDR_LSEA  < fdr_thresh) |
                             (!is.na(sig_meta$FDR_fgsea) & sig_meta$FDR_fgsea < fdr_thresh)
-    sig_meta <- merge(sig_meta,
-                      lsea_result$ks[, c("Group", "DirectionalScore", "N_group", "Level")],
-                      by = "Group", all.x = TRUE)
+    # Map combined Convergence short labels to palette labels
+    conv_map <- c(
+      "KS+fgsea"   = "KS+fgsea [strongest]",
+      "KS only"    = "KS only [distributed effect]",
+      "fgsea only" = "fgsea only [extreme-driven]",
+      "NS"         = "Neither",
+      "Neither"    = "Neither"
+    )
+    sig_meta$Convergence <- ifelse(
+      sig_meta$Convergence %in% names(conv_map),
+      conv_map[sig_meta$Convergence],
+      "Neither"
+    )
 
   } else if (has_ks) {
     sig_meta <- lsea_result$ks[lsea_result$ks$Level == group_col, ]
@@ -939,8 +1014,8 @@ plot_distribution <- function(
     quantile(x, 0.75, na.rm = TRUE) + 1.5 * IQR(x, na.rm = TRUE)
   }), na.rm = TRUE)
   y_top         <- max(y_range[2], y_whisker_max, na.rm = TRUE)
-  label_gap     <- y_span * 0.08
-  label_room    <- if (label_angle == 0) y_span * 0.22 else y_span * 0.32
+  label_gap     <- y_span * 0.10
+  label_room    <- if (label_angle == 0) y_span * 0.45 else y_span * 0.55
   y_lbl         <- y_top + label_gap
   y_upper_limit <- y_top + label_room
   y_lower_limit <- y_range[1] - y_span * 0.08
@@ -1007,12 +1082,16 @@ plot_distribution <- function(
       angle         = label_angle,
       hjust         = if (label_angle == 90) 0 else 0.5,
       vjust         = 0,
-      size          = if (label_angle == 0) 3.2 else 3.0,
+      size          = if (sig_only) {
+                         if (label_angle == 0) 3.4 else 3.0
+                       } else {
+                         if (label_angle == 0) 2.5 else 2.8
+                       },
       color         = "#E63946",
       fontface      = "bold",
       fill          = "white",
-      label.size    = 0.15,
-      label.padding = ggplot2::unit(0.20, "lines"),
+      label.size    = if (sig_only) 0.15 else 0.12,
+      label.padding = ggplot2::unit(if (sig_only) 0.20 else 0.12, "lines"),
       inherit.aes   = FALSE
     )
 
@@ -1046,8 +1125,9 @@ plot_distribution <- function(
       plot.title         = ggplot2::element_text(face = "bold", size = 13, hjust = 0.5),
       plot.subtitle      = ggplot2::element_text(size = 9, hjust = 0.5, color = "grey45"),
       plot.caption       = ggplot2::element_text(size = 7, color = "grey55", hjust = 0),
-      axis.text.x        = ggplot2::element_text(angle = 40, hjust = 1,
-                                                  size = 9, face = "bold"),
+      axis.text.x        = ggplot2::element_text(angle = 90, vjust = 0.5,
+                                                  hjust = 1, size = 8,
+                                                  face = "bold"),
       axis.text.y        = ggplot2::element_text(size = 9),
       panel.grid.major.y = ggplot2::element_line(color = "grey93"),
       panel.grid.minor   = ggplot2::element_blank(),
@@ -1061,5 +1141,7 @@ plot_distribution <- function(
       override.aes = list(linewidth = 1.1, fill = "white", size = 3.5)
     ))
 
+  attr(p, "n_sets")    <- length(set_order)
+  attr(p, "sig_only")  <- sig_only
   p
 }

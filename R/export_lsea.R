@@ -246,10 +246,23 @@ export_lsea <- function(
         path <- file.path(sub, paste0(plt_name, ".", dev))
 
         tryCatch({
+          # Dynamic sizing: dist and bubble plots scale with number of groups
+          n_sets   <- attr(plt, "n_sets")
+          sig_only <- isTRUE(attr(plt, "sig_only"))
+          is_bubble <- grepl("^bubble", plt_name)
+          w <- if (!is.null(n_sets) && is_bubble) {
+            max(8, 1 + n_sets * 0.45)    # bubble: labels are on the right
+          } else if (!is.null(n_sets)) {
+            max(8, 1 + n_sets * 0.7)     # dist: 2-line labels need wider spacing
+          } else plot_width
+          h <- if (!is.null(n_sets) && !is_bubble && sig_only) {
+            max(7, n_sets * 1.4)         # sig dist: taller so boxes aren't flat
+          } else plot_height
+
           if (dev == "pdf") {
-            grDevices::pdf(path, width = plot_width, height = plot_height)
+            grDevices::pdf(path, width = w, height = h)
           } else {
-            grDevices::png(path, width = plot_width, height = plot_height,
+            grDevices::png(path, width = w, height = h,
                            units = "in", res = plot_dpi)
           }
           print(plt)
