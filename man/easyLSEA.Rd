@@ -19,6 +19,7 @@ easyLSEA(
   n_perm = 2000L,
   fgsea_nperm = 10000L,
   plots = TRUE,
+  bubble_label = c("FDR", "DS", "NES", "n"),
   output = c("combined", "separate"),
   seed = 42L,
   verbose = TRUE
@@ -72,6 +73,11 @@ Default: \code{10000L}.}
 \item{plots}{Logical(1). Whether to generate \pkg{ggplot2} objects.
 Set to \code{FALSE} to skip plotting and reduce runtime.
 Default: \code{TRUE}.}
+
+\item{bubble_label}{Character vector. Which statistics to show next to
+each bubble in the LSEA bubble plots. Any subset of \code{"FDR"},
+\code{"DS"} (KS only), \code{"NES"} (fgsea only), and \code{"n"}.
+Use fewer to shorten labels. Default: all four.}
 
 \item{output}{Character(1). Return format when both modules run:
 \code{"combined"} returns a single \code{easyLSEA_result};

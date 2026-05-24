@@ -10,8 +10,8 @@ export_lsea(
   prefix = "easyLSEA",
   format = c("csv", "excel", "pdf"),
   overwrite = FALSE,
-  plot_width = 8,
-  plot_height = 6,
+  plot_width = NULL,
+  plot_height = NULL,
   plot_dpi = 300L,
   verbose = TRUE
 )
@@ -25,7 +25,9 @@ and/or \code{chains} (output of \code{output = "separate"}).}
 created. Default: current working directory (\code{"."}).}
 
 \item{prefix}{Character(1). Prefix for the output folder name. The folder
-is named \code{<prefix>_<YYYY-MM-DD>/}. Default: \code{"easyLSEA"}.}
+is named \code{<prefix>_<case>_vs_<ref>_<YYYY-MM-DD_HHMM>/} when
+comparison labels are available, otherwise
+\code{<prefix>_<YYYY-MM-DD_HHMM>/}. Default: \code{"easyLSEA"}.}
 
 \item{format}{Character vector. One or more of \code{"csv"},
 \code{"excel"}, \code{"pdf"}, \code{"png"}, \code{"html"}.
@@ -34,9 +36,13 @@ Default: \code{c("csv", "excel", "pdf")}.}
 \item{overwrite}{Logical(1). If \code{TRUE}, an existing output folder with
 the same name is overwritten. Default: \code{FALSE}.}
 
-\item{plot_width}{Numeric(1). Plot width in inches. Default: \code{8}.}
+\item{plot_width}{Numeric(1) or \code{NULL}. Plot width in inches. If
+\code{NULL} (default), width is auto-sized based on the number of lipid
+sets in each plot. Pass a number to override for all plots.}
 
-\item{plot_height}{Numeric(1). Plot height in inches. Default: \code{6}.}
+\item{plot_height}{Numeric(1) or \code{NULL}. Plot height in inches. If
+\code{NULL} (default), height is auto-sized per plot type. Pass a number
+to override for all plots.}
 
 \item{plot_dpi}{Integer(1). Resolution for PNG output. Default: \code{300L}.}
 
@@ -64,11 +70,16 @@ Any combination of formats can be requested in a single call.
     chain_results.csv
     chain_parsed.csv
   plots/
-    lsea_bubble_ks.pdf
-    lsea_bubble_fgsea.pdf
-    chain_tile_<CLASS>.pdf
-    chain_trend_length_<CLASS>.pdf
-    chain_trend_unsat_<CLASS>.pdf
+    lsea/
+      bubble_ks.pdf
+      bubble_fgsea.pdf
+    chains/
+      tile/
+        tile_PC.pdf
+        tile_TG.pdf  ...
+      trend/
+        trend_length_PC.pdf
+        trend_unsat_PC.pdf  ...
   results.xlsx
   report.html
 }
