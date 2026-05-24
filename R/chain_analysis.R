@@ -807,7 +807,15 @@ plot_chains <- function(
   sig_col <- intersect(c("sig", "significant"), names(df))
   has_sig <- length(sig_col) > 0L
   if (has_sig) sig_col <- sig_col[[1L]]
-  wt_col  <- if ("weight" %in% names(df)) "weight" else NULL
+  # Weight column for loess smoothing:
+  # Prefer AveExpr (LIMMA average log2 expression — proxy for abundance).
+  # Weights are applied as 2^AveExpr to convert from log2 to linear scale,
+  # giving more influence to abundant lipids. Falls back to a "weight" column
+  # if present, otherwise no weighting.
+  wt_col     <- if ("AveExpr" %in% names(df)) "AveExpr"
+                else if ("weight" %in% names(df)) "weight"
+                else NULL
+  wt_is_log2 <- !is.null(wt_col) && wt_col == "AveExpr"
 
   plots <- list()
 
@@ -891,10 +899,31 @@ plot_chains <- function(
       df_pts$sig_label <- "NS"
     }
 
-    # Per-position weights for the smooth (n chain obs per x value)
-    df_pts$n_pos <- ave(df_pts$analysis_chain_cl,
-                        df_pts$analysis_chain_cl,
-                        FUN = length)
+    # df_agg: weighted mean logFC per unique chain length position.
+    # Used for the smoothing curve and statistical test to avoid
+    # pseudoreplication (a TG with 3 chains would otherwise contribute
+    # 3 points with the same logFC to the same or different x positions).
+    # Weight: 2^AveExpr (linear abundance) if available, else equal weights.
+    df_agg_length <- do.call(rbind, lapply(
+      split(df_cls, df_cls$analysis_chain_cl),
+      function(sub) {
+        wts <- if (!is.null(wt_col)) {
+          if (wt_is_log2) 2^sub[[wt_col]] else sub[[wt_col]]
+        } else rep(1, nrow(sub))
+        data.frame(
+          analysis_chain_cl = sub$analysis_chain_cl[[1L]],
+          mean_logFC        = stats::weighted.mean(sub[[fc_col]],
+                                                   w = wts, na.rm = TRUE),
+          n_lip_pos         = length(unique(sub[[1L]])),
+          stringsAsFactors  = FALSE
+        )
+      }
+    ))
+
+    wt_label_length <- if (!is.null(wt_col))
+      paste0("curve weighted by: 2^", wt_col)
+    else
+      "curve: equal weights"
 
     p <- ggplot2::ggplot(df_pts,
                          ggplot2::aes(x = analysis_chain_cl,
@@ -931,18 +960,19 @@ plot_chains <- function(
     if (smooth_method == "loess")
       smooth_args$method.args <- list(span = smooth_span)
 
-    if (smooth_weighted) {
-      p <- p + do.call(ggplot2::geom_smooth,
-                       c(list(ggplot2::aes(weight = n_pos)), smooth_args))
-    } else {
-      p <- p + do.call(ggplot2::geom_smooth, smooth_args)
-    }
+    # Curve fitted on aggregated means (one point per x position)
+    p <- p + do.call(ggplot2::geom_smooth,
+                     c(list(data      = df_agg_length,
+                            mapping   = ggplot2::aes(x = analysis_chain_cl,
+                                                     y = mean_logFC,
+                                                     weight = n_lip_pos)),
+                       smooth_args))
 
-    # Statistical annotation
+    # Statistical annotation — Spearman on aggregated means (no pseudoreplication)
     ann_length <- .trend_annotation(
-      x          = df_pts$analysis_chain_cl,
-      y          = df_pts[[fc_col]],
-      weights    = df_pts$n_pos,
+      x          = df_agg_length$analysis_chain_cl,
+      y          = df_agg_length$mean_logFC,
+      weights    = df_agg_length$n_lip_pos,
       test       = trend_test,
       case_lbl   = case_lbl,
       ref_lbl    = ref_lbl,
@@ -958,6 +988,7 @@ plot_chains <- function(
           "  |  method=", smooth_method,
           if (smooth_method == "loess") paste0("  span=", smooth_span) else "",
           "\n", .method_lbl(ctype),
+          "  |  ", wt_label_length,
           if (!is.null(ann_length)) paste0("\n", ann_length) else ""
         ),
         x = .axis_lbl(ctype, "cl"),
@@ -1010,9 +1041,27 @@ plot_chains <- function(
       df_pts$sig_label <- "NS"
     }
 
-    df_pts$n_pos <- ave(df_pts$analysis_chain_cs,
-                        df_pts$analysis_chain_cs,
-                        FUN = length)
+    # df_agg: weighted mean logFC per unique unsaturation position.
+    df_agg_unsat <- do.call(rbind, lapply(
+      split(df_cls, df_cls$analysis_chain_cs),
+      function(sub) {
+        wts <- if (!is.null(wt_col)) {
+          if (wt_is_log2) 2^sub[[wt_col]] else sub[[wt_col]]
+        } else rep(1, nrow(sub))
+        data.frame(
+          analysis_chain_cs = sub$analysis_chain_cs[[1L]],
+          mean_logFC        = stats::weighted.mean(sub[[fc_col]],
+                                                   w = wts, na.rm = TRUE),
+          n_lip_pos         = length(unique(sub[[1L]])),
+          stringsAsFactors  = FALSE
+        )
+      }
+    ))
+
+    wt_label_unsat <- if (!is.null(wt_col))
+      paste0("curve weighted by: 2^", wt_col)
+    else
+      "curve: equal weights"
 
     p <- ggplot2::ggplot(df_pts,
                          ggplot2::aes(x = analysis_chain_cs,
@@ -1047,18 +1096,19 @@ plot_chains <- function(
     if (smooth_method == "loess")
       smooth_args$method.args <- list(span = smooth_span)
 
-    if (smooth_weighted) {
-      p <- p + do.call(ggplot2::geom_smooth,
-                       c(list(ggplot2::aes(weight = n_pos)), smooth_args))
-    } else {
-      p <- p + do.call(ggplot2::geom_smooth, smooth_args)
-    }
+    # Curve fitted on aggregated means (one point per x position)
+    p <- p + do.call(ggplot2::geom_smooth,
+                     c(list(data      = df_agg_unsat,
+                            mapping   = ggplot2::aes(x = analysis_chain_cs,
+                                                     y = mean_logFC,
+                                                     weight = n_lip_pos)),
+                       smooth_args))
 
-    # Statistical annotation
+    # Statistical annotation — Spearman on aggregated means (no pseudoreplication)
     ann_unsat <- .trend_annotation(
-      x          = df_pts$analysis_chain_cs,
-      y          = df_pts[[fc_col]],
-      weights    = df_pts$n_pos,
+      x          = df_agg_unsat$analysis_chain_cs,
+      y          = df_agg_unsat$mean_logFC,
+      weights    = df_agg_unsat$n_lip_pos,
       test       = trend_test,
       case_lbl   = case_lbl,
       ref_lbl    = ref_lbl,
@@ -1074,6 +1124,7 @@ plot_chains <- function(
           "  |  method=", smooth_method,
           if (smooth_method == "loess") paste0("  span=", smooth_span) else "",
           "\n", .method_lbl(ctype),
+          "  |  ", wt_label_unsat,
           if (!is.null(ann_unsat)) paste0("\n", ann_unsat) else ""
         ),
         x = .axis_lbl(ctype, "cs"),
