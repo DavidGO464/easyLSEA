@@ -3,8 +3,6 @@
 <img src="man/figures/logo.png" align="right" height="138" alt="easyLSEA logo"/>
 
 <!-- badges: start -->
-[![Descargar easyLSEA](https://img.shields.io/badge/descargar-easyLSEA-blue?style=flat-square&logo=github)](https://github.com/tu_usuario/easyLSEA/archive/refs/heads/main.zip)
-
 [![R-CMD-check](https://github.com/DavidGO464/easyLSEA/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/DavidGO464/easyLSEA/actions/workflows/R-CMD-check.yaml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
  
