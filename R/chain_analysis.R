@@ -356,13 +356,17 @@ default_chain_config <- function() {
 #'   shorthand column used as fallback for sn-2 and single-chain parsing when
 #'   the primary name is a common name. Default: \code{"Shorthand"}.
 #' @param rank_col Character(1) or \code{NULL}. Name of a confidence-rank
-#'   column. Rows with rank \code{"P"} or \code{NA} are excluded from
-#'   analysis. Set to \code{NULL} to skip rank filtering. Default:
+#'   column. Rows with rank \code{"P"} or \code{NA} are always excluded.
+#'   Set to \code{NULL} to skip rank filtering entirely. Default:
 #'   \code{"Confidence_rank"}.
+#' @param min_rank Character(1). Minimum confidence rank to include in
+#'   analysis. Ranks are ordered \code{A > B > C > D > E > P}. Setting
+#'   \code{min_rank = "B"} includes only ranks A and B, excluding C, D, E
+#'   and P. Default: \code{"E"} (include all except P and NA).
 #' @param cls_config Named list from \code{\link{default_chain_config}}.
 #'   Override individual elements to change class routing.
 #'
-#' @return A named list with three elements:
+#' @return A named list with two elements:
 #'   \describe{
 #'     \item{\code{parsed}}{Long-format \code{data.frame} with one row per
 #'       chain observation. Contains all columns from \code{data} plus chain
@@ -371,13 +375,6 @@ default_chain_config <- function() {
 #'     \item{\code{summary}}{Per-lipid parsing log \code{data.frame} with
 #'       columns \code{LipidName}, \code{LipidClass},
 #'       \code{Confidence_rank}, \code{status}, and \code{chain_type}.}
-#'     \item{\code{wide}}{Wide-format \code{data.frame} with one row per
-#'       lipid. Columns \code{sn1}, \code{sn2}, \code{sn3}, \code{sn4}
-#'       contain individual acyl chain positions (e.g. \code{"18:1"}), and
-#'       \code{total_carbons} and \code{total_unsat} give the summed totals.
-#'       For cardiolipins (CL), all four sn positions are populated.
-#'       For sphingolipids, \code{sn1} = sphingoid base, \code{sn2} =
-#'       N-acyl chain.}
 #'   }
 #'
 #' @seealso \code{\link{default_chain_config}}, \code{plot_chains()}
@@ -389,7 +386,6 @@ default_chain_config <- function() {
 #' chains <- parse_lipid_chains(annotated)
 #' head(chains$parsed)
 #' head(chains$summary)
-#' head(chains$wide)
 #' }
 #'
 #' @export
@@ -399,6 +395,7 @@ parse_lipid_chains <- function(
     class_col     = "LipidClass",
     shorthand_col = "Shorthand",
     rank_col      = "Confidence_rank",
+    min_rank      = "E",
     cls_config    = default_chain_config()
 ) {
 
@@ -419,6 +416,14 @@ parse_lipid_chains <- function(
             " not found -- rank filtering skipped.")
     rank_col <- NULL
   }
+
+  # Rank order: A is highest confidence, P is provisional (always excluded)
+  .rank_order <- c(A = 1L, B = 2L, C = 3L, D = 4L, E = 5L, P = 6L)
+  min_rank    <- toupper(min_rank)
+  if (!min_rank %in% names(.rank_order))
+    stop("'min_rank' must be one of: A, B, C, D, E. Got: ", sQuote(min_rank),
+         call. = FALSE)
+  min_rank_val <- .rank_order[[min_rank]]
 
   # Columns to carry through to the parsed output
   base_cols <- intersect(
@@ -448,13 +453,21 @@ parse_lipid_chains <- function(
     lip_short <- if (!is.null(shorthand_col)) as.character(row[[shorthand_col]]) else lip_name
     lip_rank  <- if (!is.null(rank_col))      as.character(row[[rank_col]])      else "A"
 
-    # Always exclude rank "P" or NA (lowest confidence)
-    if (!is.null(rank_col) && (is.na(lip_rank) || lip_rank == "P")) {
+    # Exclude rank "P", NA, or below min_rank threshold
+    lip_rank_val <- if (!is.null(rank_col) && lip_rank %in% names(.rank_order))
+      .rank_order[[lip_rank]] else NA_integer_
+
+    if (!is.null(rank_col) && (is.na(lip_rank) || lip_rank == "P" ||
+                                (!is.na(lip_rank_val) && lip_rank_val > min_rank_val))) {
+      status_lbl <- if (is.na(lip_rank) || lip_rank == "P")
+        "excluded_rank_P_or_NA"
+      else
+        paste0("excluded_rank_below_", min_rank)
       summary_rows[[length(summary_rows) + 1L]] <- data.frame(
         LipidName       = lip_name,
         LipidClass      = lip_cls,
         Confidence_rank = lip_rank,
-        status          = "excluded_rank_P_or_NA",
+        status          = status_lbl,
         chain_type      = NA_character_,
         stringsAsFactors = FALSE
       )
@@ -516,44 +529,23 @@ parse_lipid_chains <- function(
 
 # -- Wide summary builder ------------------------------------------------------
 
-#' Build a wide-format chain summary (one row per lipid)
-#'
-#' Collapses the long-format parsed output into one row per lipid, with
-#' individual sn positions as columns (sn1, sn2, sn3, sn4 for CL) and
-#' total carbon/unsaturation counts.
-#'
-#' Chain type mapping to sn columns:
-#'   sn2        -> sn1 (from sn1_cl/sn1_cs), sn2 (from sn2_cl/sn2_cs)
-#'   nacyl      -> sn_base (sphingoid base), sn_nacyl (N-acyl chain)
-#'   total      -> total only (individual positions not resolved)
-#'   single     -> sn1 only
-#'   long_format-> sn1, sn2, sn3, sn4 by order of appearance
-#'
-#' @param parsed data.frame. Output of parse_lipid_chains()$parsed.
-#' @param lipid_col Character(1). Lipid name column. Default: "LipidName".
-#' @return data.frame with one row per lipid.
-#'
 #' @noRd
 .build_wide <- function(parsed, lipid_col = "LipidName") {
 
   if (is.null(parsed) || nrow(parsed) == 0L) return(data.frame())
 
-  # Base columns to carry through (one value per lipid)
   base_cols <- intersect(
     c(lipid_col, "LipidClass", "Confidence_rank", "chain_type",
       "logFC", "adj.P.Val", "sig"),
     names(parsed)
   )
 
-  # Helper: format one chain as "CL:CS" string, e.g. "18:1"
   .fmt <- function(cl, cs) {
     cl <- suppressWarnings(as.numeric(cl))
     cs <- suppressWarnings(as.numeric(cs))
-    ifelse(is.na(cl) | is.na(cs), NA_character_,
-           paste0(cl, ":", cs))
+    ifelse(is.na(cl) | is.na(cs), NA_character_, paste0(cl, ":", cs))
   }
 
-  # Split by lipid name and collapse each group
   lips <- split(parsed, parsed[[lipid_col]])
 
   rows <- lapply(lips, function(df) {
@@ -562,7 +554,6 @@ parse_lipid_chains <- function(
     n     <- nrow(df)
 
     # Total carbons and unsaturation
-    # For long_format (TG, PI, CL) total_cl may be NA — sum from individual chains
     total_cl <- if ("total_cl" %in% names(df) && !all(is.na(df$total_cl))) {
       df$total_cl[[1L]]
     } else if ("analysis_chain_cl" %in% names(df) && !all(is.na(df$analysis_chain_cl))) {
@@ -575,23 +566,19 @@ parse_lipid_chains <- function(
       sum(as.numeric(df$analysis_chain_cs), na.rm = TRUE)
     } else NA_integer_
 
-    # Build sn position columns depending on chain type
     if (ctype == "sn2") {
       sn1   <- .fmt(df$sn1_cl[[1L]], df$sn1_cs[[1L]])
       sn2   <- .fmt(df$sn2_cl[[1L]], df$sn2_cs[[1L]])
       extra <- data.frame(sn1 = sn1, sn2 = sn2,
                           sn3 = NA_character_, sn4 = NA_character_,
                           stringsAsFactors = FALSE)
-
     } else if (ctype == "nacyl") {
       sn_base  <- .fmt(df$base_cl[[1L]],  df$base_cs[[1L]])
       sn_nacyl <- .fmt(df$nacyl_cl[[1L]], df$nacyl_cs[[1L]])
       extra <- data.frame(sn1 = sn_base, sn2 = sn_nacyl,
                           sn3 = NA_character_, sn4 = NA_character_,
                           stringsAsFactors = FALSE)
-
     } else if (ctype == "long_format") {
-      # Chains ordered by appearance (sn1..sn4)
       chains <- .fmt(df$analysis_chain_cl, df$analysis_chain_cs)
       sn1 <- if (n >= 1L) chains[[1L]] else NA_character_
       sn2 <- if (n >= 2L) chains[[2L]] else NA_character_
@@ -599,21 +586,16 @@ parse_lipid_chains <- function(
       sn4 <- if (n >= 4L) chains[[4L]] else NA_character_
       extra <- data.frame(sn1 = sn1, sn2 = sn2, sn3 = sn3, sn4 = sn4,
                           stringsAsFactors = FALSE)
-
     } else {
-      # total or single — no individual positions
       extra <- data.frame(sn1 = NA_character_, sn2 = NA_character_,
                           sn3 = NA_character_, sn4 = NA_character_,
                           stringsAsFactors = FALSE)
     }
 
     cbind(base,
-          data.frame(total_carbons = total_cl,
-                     total_unsat   = total_cs,
+          data.frame(total_carbons = total_cl, total_unsat = total_cs,
                      stringsAsFactors = FALSE),
-          extra,
-          row.names = NULL,
-          stringsAsFactors = FALSE)
+          extra, row.names = NULL, stringsAsFactors = FALSE)
   })
 
   out <- do.call(rbind, rows)
