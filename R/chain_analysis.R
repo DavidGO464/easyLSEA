@@ -89,6 +89,14 @@ default_chain_config <- function() {
   sn1 <- .parse_one(parts[1L])
   sn2 <- .parse_one(parts[2L])
   if (anyNA(c(sn1, sn2))) return(NULL)
+
+  # Exclude lyso-lipids: sn-2 position is 0:0 (unspecified acyl chain).
+  # These are lyso-species (e.g. PC(20:4/0:0)) and should not enter
+  # chain analysis as if they had a 0-carbon chain.
+  # Also exclude sn-1 = 0:0 for the same reason.
+  if (sn2["cl"] == 0L && sn2["cs"] == 0L) return(NULL)
+  if (sn1["cl"] == 0L && sn1["cs"] == 0L) return(NULL)
+
   data.frame(
     chain_type         = "sn2",
     sn1_cl             = sn1["cl"],  sn1_cs             = sn1["cs"],
@@ -120,6 +128,9 @@ default_chain_config <- function() {
   base  <- .parse_one(parts[1L])
   nacyl <- .parse_one(parts[2L])
   if (anyNA(c(base, nacyl))) return(NULL)
+
+  # Exclude unresolved N-acyl: 0:0 means the acyl chain is not specified
+  if (nacyl["cl"] == 0L && nacyl["cs"] == 0L) return(NULL)
   data.frame(
     chain_type         = "nacyl",
     base_cl            = base["cl"],  base_cs            = base["cs"],
@@ -480,7 +491,8 @@ parse_lipid_chains <- function(
     status <- if (result$type == "excluded") {
       "excluded_class"
     } else if (is.null(result$data)) {
-      if      (lip_cls == "SM")                            "excluded_sm_unresolved"
+      if      (grepl("0:0", lip_name, fixed = TRUE))       "excluded_lyso_unresolved"
+      else if (lip_cls == "SM")                            "excluded_sm_unresolved"
       else if (startsWith(result$type, "excluded_"))       result$type
       else                                                  "excluded_unresolved"
     } else {
@@ -651,6 +663,39 @@ parse_lipid_chains <- function(
 
 # -- Exported plot function ----------------------------------------------------
 
+#' @noRd
+.trend_annotation <- function(x, y, weights, test, case_lbl, ref_lbl, fdr_thresh) {
+  # Runs the selected statistical test on raw (individual) observations
+  # and returns a formatted annotation string for geom_label.
+  if (test == "none" || length(x) < 3L) return(NULL)
+
+  ann <- tryCatch({
+    if (test == "spearman") {
+      res  <- stats::cor.test(x, y, method = "spearman", exact = FALSE)
+      rho  <- round(res$estimate, 2L)
+      pval <- res$p.value
+      pstr <- if (pval < 0.001) "p < 0.001"
+              else paste0("p = ", round(pval, 3L))
+      paste0("Spearman \u03c1 = ", sprintf("%+.2f", rho), ",  ", pstr)
+    } else {
+      # Weighted linear regression
+      df_lm <- data.frame(x = x, y = y, w = weights)
+      fit   <- stats::lm(y ~ x, data = df_lm, weights = w)
+      cf    <- summary(fit)$coefficients
+      beta  <- round(cf["x", "Estimate"], 3L)
+      pval  <- cf["x", "Pr(>|t|)"]
+      pstr  <- if (pval < 0.001) "p < 0.001"
+               else paste0("p = ", round(pval, 3L))
+      paste0("\u03b2 = ", sprintf("%+.3f", beta), " per unit,  ", pstr,
+             "  (weighted LM)")
+    }
+  }, error = function(e) NULL)
+
+  ann
+}
+
+
+
 #' Generate chain analysis plots
 #'
 #' Produces tile and trend plots for each lipid class with sufficient
@@ -662,17 +707,55 @@ parse_lipid_chains <- function(
 #'   \code{"Case"}.
 #' @param ref_lbl Character(1). Label for the reference group. Default:
 #'   \code{"Reference"}.
-#' @param fdr_thresh Numeric(1). FDR threshold used to mark significant
-#'   lipids in tile plot cell labels. Default: \code{0.05}.
-#' @param tile_label Character(1). What to display inside each tile cell.
-#'   \code{"both"} (default) shows total lipids and significant count
-#'   (e.g. \code{"22 (4*)"}); \code{"n"} shows only the total count;
-#'   \code{"sig"} shows only the significant count; \code{"none"} shows
-#'   no text (colour gradient only).
+#' @param fdr_thresh Numeric(1). FDR threshold to colour individual lipid
+#'   points in trend plots (red = FDR sig, grey = NS) and to label
+#'   significant counts in tile cells. Default: \code{0.05}.
 #' @param min_n_tile Integer(1). Minimum chain observations per class to
 #'   produce a tile plot. Default: \code{4L}.
 #' @param min_n_trend Integer(1). Minimum chain observations per class to
 #'   produce trend plots. Default: \code{5L}.
+#' @param smooth_method Character(1). Smoothing method for trend plots.
+#'   \code{"loess"} (default) fits a local polynomial; \code{"lm"} fits a
+#'   global linear model. Use \code{"lm"} for small datasets or when a
+#'   monotone trend is expected a priori.
+#' @param smooth_span Numeric(1). Span for loess smoothing (only used when
+#'   \code{smooth_method = "loess"}). Smaller values (e.g. \code{0.4}) produce
+#'   a more flexible curve; larger values (e.g. \code{0.9}) produce a smoother
+#'   curve. Default: \code{0.75}. A warning is issued when
+#'   \code{smooth_span < 0.5} and fewer than 10 observations are available,
+#'   as this combination risks overfitting.
+#' @param smooth_weighted Logical(1). If \code{TRUE} (default), the smoothing
+#'   curve is weighted by the number of chain observations per x-axis position,
+#'   giving more influence to well-represented chain lengths/unsaturations.
+#'   Mathematically more appropriate than unweighted loess when observation
+#'   counts are unequal across positions.
+#' @param smooth_se Logical(1). Whether to display the 95\% confidence
+#'   interval ribbon around the smoothing curve. Default: \code{TRUE}.
+#' @param show_points Logical(1). Whether to display individual lipid points
+#'   in trend plots, coloured by FDR significance. Default: \code{TRUE}.
+#'   Set to \code{FALSE} to show only the smoothing curve (cleaner for
+#'   classes with many lipids).
+#' @param trend_test Character(1). Statistical test to annotate on trend plots.
+#'   \code{"spearman"} (default) computes Spearman rank correlation between
+#'   chain position (length or unsaturation) and logFC across individual lipids,
+#'   reporting \eqn{\rho} and p-value. \code{"lm"} fits a weighted linear
+#'   regression (weighted by n observations per position) and reports the slope
+#'   \eqn{\beta} and p-value. \code{"none"} shows no statistical annotation.
+#'   Note: these tests are computed on the individual lipid observations, not
+#'   on the smoothed curve.
+#' @param trend_x_step_length Integer(1) or \code{NULL}. Step size for
+#'   x-axis tick marks in chain length trend plots. Default: \code{2L}
+#'   (every 2 carbons), suitable for the typical range of 8--36 carbons.
+#'   Use \code{1L} for fine-grained resolution or \code{4L} for very wide
+#'   ranges. When \code{NULL}, ggplot2 chooses breaks automatically.
+#' @param trend_x_step_unsat Integer(1) or \code{NULL}. Step size for
+#'   x-axis tick marks in unsaturation trend plots. Default: \code{1L}
+#'   (every double bond), suitable for the typical range of 0--8.
+#'   When \code{NULL}, ggplot2 chooses breaks automatically.
+#' @param tile_label Character(1). What to display inside each tile cell:
+#'   \code{"both"} (default) shows total and significant lipid counts;
+#'   \code{"n"} shows only the total; \code{"sig"} shows only significant;
+#'   \code{"none"} shows no text.
 #'
 #' @return Named list of \code{ggplot} objects with elements
 #'   \code{tile_<CLASS>}, \code{trend_length_<CLASS>},
@@ -687,15 +770,25 @@ parse_lipid_chains <- function(
 #' @export
 plot_chains <- function(
     chains_result,
-    case_lbl   = "Case",
-    ref_lbl    = "Reference",
-    fdr_thresh = 0.05,
-    tile_label  = c("both", "n", "sig", "none"),
-    min_n_tile  = 4L,
-    min_n_trend = 5L
+    case_lbl        = "Case",
+    ref_lbl         = "Reference",
+    fdr_thresh      = 0.05,
+    min_n_tile      = 4L,
+    min_n_trend     = 5L,
+    smooth_method   = c("loess", "lm"),
+    smooth_span     = 0.75,
+    smooth_weighted = TRUE,
+    smooth_se       = TRUE,
+    show_points     = TRUE,
+    tile_label      = c("both", "n", "sig", "none"),
+    trend_test          = c("spearman", "lm", "none"),
+    trend_x_step_length = 2L,
+    trend_x_step_unsat  = 1L
 ) {
 
-  tile_label <- match.arg(tile_label)
+  smooth_method <- match.arg(smooth_method)
+  tile_label    <- match.arg(tile_label)
+  trend_test    <- match.arg(trend_test)
 
   df <- chains_result$parsed
 
@@ -750,40 +843,21 @@ plot_chains <- function(
         midpoint = 0, low = "#2166AC", mid = "white", high = "#E63946",
         name = "weighted\nmean logFC"
       ) +
-      {
-        if (tile_label != "none") {
-          lbl_expr <- switch(tile_label,
-            both = paste0(
-              tile$n_lip_cell,
-              ifelse(tile$n_sig_cell > 0,
-                     paste0(" (", tile$n_sig_cell, "*)"), "")
-            ),
-            n    = as.character(tile$n_lip_cell),
-            sig  = ifelse(tile$n_sig_cell > 0,
-                          paste0("(", tile$n_sig_cell, "*)"), "")
-          )
-          ggplot2::geom_text(
-            data = cbind(tile, .lbl = lbl_expr),
-            ggplot2::aes(label = .lbl),
-            size = 3, color = "grey20"
-          )
-        } else {
-          NULL
-        }
-      } +
+      ggplot2::geom_text(
+        ggplot2::aes(label = paste0(
+          n_lip_cell,
+          ifelse(n_sig_cell > 0,
+                 paste0(" (", n_sig_cell, "*)"), "")
+        )),
+        size = 3, color = "grey20"
+      ) +
       ggplot2::labs(
         title    = paste0(cls, " -- Chain Distribution"),
         subtitle = paste0(
           case_lbl, " vs ", ref_lbl, "  |  n = ", n_lip, " lipids  |  ",
           .method_lbl(ctype), "\n",
-          switch(tile_label,
-            both = paste0("fill = weighted mean logFC  |  n (n_sig*): lipids per cell",
-                          if (has_sig) paste0(" (FDR < ", fdr_thresh, ")") else ""),
-            n    = "fill = weighted mean logFC  |  n: lipids per cell",
-            sig  = paste0("fill = weighted mean logFC  |  (n_sig*): significant lipids per cell",
-                          if (has_sig) paste0(" (FDR < ", fdr_thresh, ")") else ""),
-            none = "fill = weighted mean logFC"
-          )
+          "fill = weighted mean logFC  |  n (n_sig*): lipids per cell",
+          if (has_sig) paste0(" (FDR < ", fdr_thresh, ")") else ""
         ),
         x = .axis_lbl(ctype, "cs"),
         y = .axis_lbl(ctype, "cl")
@@ -798,40 +872,117 @@ plot_chains <- function(
     df_cls <- df[df$LipidClass == cls &
                    !is.na(df$analysis_chain_cl), ]
     if (nrow(df_cls) < min_n_trend) next
-    ctype <- df_cls$chain_type[[1L]]
-    wt    <- if (!is.null(wt_col)) df_cls[[wt_col]] else rep(1, nrow(df_cls))
+    ctype  <- df_cls$chain_type[[1L]]
+    n_lip  <- length(unique(df_cls[[1L]]))
+    n_obs  <- nrow(df_cls)
 
-    df_agg <- do.call(rbind, lapply(
-      split(df_cls, df_cls$analysis_chain_cl),
-      function(sub) {
-        wts <- if (!is.null(wt_col)) sub[[wt_col]] else rep(1, nrow(sub))
-        data.frame(
-          analysis_chain_cl = sub$analysis_chain_cl[[1L]],
-          mean_logFC        = stats::weighted.mean(sub[[fc_col]], w = wts,
-                                                   na.rm = TRUE),
-          n                 = nrow(sub)
-        )
-      }
-    ))
+    # Overfitting warning: small span + few observations
+    if (smooth_method == "loess" && smooth_span < 0.5 && n_obs < 10L)
+      warning(cls, " trend_length: smooth_span=", smooth_span,
+              " with only ", n_obs, " observations may overfit. ",
+              "Consider increasing smooth_span.", call. = FALSE)
 
-    p <- ggplot2::ggplot(df_agg,
+    # Individual lipid logFC (one row per chain observation)
+    df_pts <- df_cls
+    if (has_sig) {
+      df_pts$sig_label <- ifelse(df_pts[[sig_col]] == 1L,
+                                 paste0("FDR < ", fdr_thresh), "NS")
+    } else {
+      df_pts$sig_label <- "NS"
+    }
+
+    # Per-position weights for the smooth (n chain obs per x value)
+    df_pts$n_pos <- ave(df_pts$analysis_chain_cl,
+                        df_pts$analysis_chain_cl,
+                        FUN = length)
+
+    p <- ggplot2::ggplot(df_pts,
                          ggplot2::aes(x = analysis_chain_cl,
-                                      y = mean_logFC)) +
-      ggplot2::geom_point(ggplot2::aes(size = n), color = "#2C3E50",
-                          alpha = 0.7) +
-      ggplot2::geom_smooth(method = "loess", se = TRUE,
-                           color = "#E63946", fill = "#E63946",
-                           alpha = 0.15, linewidth = 0.8) +
+                                      y = .data[[fc_col]])) +
       ggplot2::geom_hline(yintercept = 0, linetype = "dashed",
-                          color = "grey60", linewidth = 0.5) +
-      ggplot2::labs(
-        title    = paste0(cls, " -- Trend by Chain Length"),
-        subtitle = paste0(case_lbl, " vs ", ref_lbl, "  |  ",
-                          .method_lbl(ctype)),
-        x        = .axis_lbl(ctype, "cl"),
-        y        = "weighted mean log2FC"
+                          color = "grey60", linewidth = 0.5)
+
+    # Individual points coloured by FDR significance
+    if (show_points) {
+      p <- p + ggplot2::geom_point(
+        ggplot2::aes(color = sig_label),
+        size = 1.8, alpha = 0.65
       ) +
-      .theme_chain()
+      ggplot2::scale_color_manual(
+        values = c(
+          setNames("#E63946", paste0("FDR < ", fdr_thresh)),
+          NS = "grey55"
+        ),
+        name   = paste0("FDR < ", fdr_thresh),
+        labels = c(setNames("FDR sig", paste0("FDR < ", fdr_thresh)),
+                   NS = "NS")
+      )
+    }
+
+    # Smoothing curve — weighted by n observations per position if requested
+    smooth_args <- list(
+      method    = smooth_method,
+      se        = smooth_se,
+      color     = "#2C3E50",
+      fill      = "grey70",
+      alpha     = 0.18,
+      linewidth = 0.9
+    )
+    if (smooth_method == "loess")
+      smooth_args$method.args <- list(span = smooth_span)
+
+    if (smooth_weighted) {
+      p <- p + do.call(ggplot2::geom_smooth,
+                       c(list(ggplot2::aes(weight = n_pos)), smooth_args))
+    } else {
+      p <- p + do.call(ggplot2::geom_smooth, smooth_args)
+    }
+
+    # Statistical annotation
+    ann_length <- .trend_annotation(
+      x          = df_pts$analysis_chain_cl,
+      y          = df_pts[[fc_col]],
+      weights    = df_pts$n_pos,
+      test       = trend_test,
+      case_lbl   = case_lbl,
+      ref_lbl    = ref_lbl,
+      fdr_thresh = fdr_thresh
+    )
+
+    p <- p +
+      ggplot2::labs(
+        title    = paste0(cls, " \u2014 Chain Length Trend"),
+        subtitle = paste0(
+          case_lbl, " vs ", ref_lbl,
+          "  |  n=", n_lip, " lipids / ", n_obs, " chain obs",
+          "  |  method=", smooth_method,
+          if (smooth_method == "loess") paste0("  span=", smooth_span) else "",
+          "\n", .method_lbl(ctype),
+          if (!is.null(ann_length)) paste0("\n", ann_length) else ""
+        ),
+        x = .axis_lbl(ctype, "cl"),
+        y = paste0("logFC (", case_lbl, " / ", ref_lbl, ")")
+      ) +
+      .theme_chain() +
+      ggplot2::theme(legend.position = "bottom") +
+      {
+        x_vals <- df_pts$analysis_chain_cl
+        x_min  <- min(x_vals, na.rm = TRUE)
+        x_max  <- max(x_vals, na.rm = TRUE)
+        if (!is.null(trend_x_step_length) && is.numeric(trend_x_step_length)) {
+          brks <- seq(floor(x_min / trend_x_step_length) * trend_x_step_length,
+                      ceiling(x_max / trend_x_step_length) * trend_x_step_length,
+                      by = trend_x_step_length)
+          ggplot2::scale_x_continuous(
+            breaks = brks,
+            expand = ggplot2::expansion(mult = c(0.05, 0.05))
+          )
+        } else {
+          ggplot2::scale_x_continuous(
+            expand = ggplot2::expansion(mult = c(0.05, 0.05))
+          )
+        }
+      }
 
     plots[[paste0("trend_length_", cls)]] <- p
   }
@@ -841,39 +992,113 @@ plot_chains <- function(
     df_cls <- df[df$LipidClass == cls &
                    !is.na(df$analysis_chain_cs), ]
     if (nrow(df_cls) < min_n_trend) next
-    ctype <- df_cls$chain_type[[1L]]
+    ctype  <- df_cls$chain_type[[1L]]
+    n_lip  <- length(unique(df_cls[[1L]]))
+    n_obs  <- nrow(df_cls)
 
-    df_agg <- do.call(rbind, lapply(
-      split(df_cls, df_cls$analysis_chain_cs),
-      function(sub) {
-        wts <- if (!is.null(wt_col)) sub[[wt_col]] else rep(1, nrow(sub))
-        data.frame(
-          analysis_chain_cs = sub$analysis_chain_cs[[1L]],
-          mean_logFC        = stats::weighted.mean(sub[[fc_col]], w = wts,
-                                                   na.rm = TRUE),
-          n                 = nrow(sub)
-        )
-      }
-    ))
+    # Overfitting warning
+    if (smooth_method == "loess" && smooth_span < 0.5 && n_obs < 10L)
+      warning(cls, " trend_unsat: smooth_span=", smooth_span,
+              " with only ", n_obs, " observations may overfit. ",
+              "Consider increasing smooth_span.", call. = FALSE)
 
-    p <- ggplot2::ggplot(df_agg,
+    df_pts <- df_cls
+    if (has_sig) {
+      df_pts$sig_label <- ifelse(df_pts[[sig_col]] == 1L,
+                                 paste0("FDR < ", fdr_thresh), "NS")
+    } else {
+      df_pts$sig_label <- "NS"
+    }
+
+    df_pts$n_pos <- ave(df_pts$analysis_chain_cs,
+                        df_pts$analysis_chain_cs,
+                        FUN = length)
+
+    p <- ggplot2::ggplot(df_pts,
                          ggplot2::aes(x = analysis_chain_cs,
-                                      y = mean_logFC)) +
-      ggplot2::geom_point(ggplot2::aes(size = n), color = "#2C3E50",
-                          alpha = 0.7) +
-      ggplot2::geom_smooth(method = "loess", se = TRUE,
-                           color = "#2166AC", fill = "#2166AC",
-                           alpha = 0.15, linewidth = 0.8) +
+                                      y = .data[[fc_col]])) +
       ggplot2::geom_hline(yintercept = 0, linetype = "dashed",
-                          color = "grey60", linewidth = 0.5) +
-      ggplot2::labs(
-        title    = paste0(cls, " -- Trend by Unsaturation"),
-        subtitle = paste0(case_lbl, " vs ", ref_lbl, "  |  ",
-                          .method_lbl(ctype)),
-        x        = .axis_lbl(ctype, "cs"),
-        y        = "weighted mean log2FC"
+                          color = "grey60", linewidth = 0.5)
+
+    if (show_points) {
+      p <- p + ggplot2::geom_point(
+        ggplot2::aes(color = sig_label),
+        size = 1.8, alpha = 0.65
       ) +
-      .theme_chain()
+      ggplot2::scale_color_manual(
+        values = c(
+          setNames("#E63946", paste0("FDR < ", fdr_thresh)),
+          NS = "grey55"
+        ),
+        name   = paste0("FDR < ", fdr_thresh),
+        labels = c(setNames("FDR sig", paste0("FDR < ", fdr_thresh)),
+                   NS = "NS")
+      )
+    }
+
+    smooth_args <- list(
+      method    = smooth_method,
+      se        = smooth_se,
+      color     = "#2C3E50",
+      fill      = "grey70",
+      alpha     = 0.18,
+      linewidth = 0.9
+    )
+    if (smooth_method == "loess")
+      smooth_args$method.args <- list(span = smooth_span)
+
+    if (smooth_weighted) {
+      p <- p + do.call(ggplot2::geom_smooth,
+                       c(list(ggplot2::aes(weight = n_pos)), smooth_args))
+    } else {
+      p <- p + do.call(ggplot2::geom_smooth, smooth_args)
+    }
+
+    # Statistical annotation
+    ann_unsat <- .trend_annotation(
+      x          = df_pts$analysis_chain_cs,
+      y          = df_pts[[fc_col]],
+      weights    = df_pts$n_pos,
+      test       = trend_test,
+      case_lbl   = case_lbl,
+      ref_lbl    = ref_lbl,
+      fdr_thresh = fdr_thresh
+    )
+
+    p <- p +
+      ggplot2::labs(
+        title    = paste0(cls, " \u2014 Unsaturation Trend"),
+        subtitle = paste0(
+          case_lbl, " vs ", ref_lbl,
+          "  |  n=", n_lip, " lipids / ", n_obs, " chain obs",
+          "  |  method=", smooth_method,
+          if (smooth_method == "loess") paste0("  span=", smooth_span) else "",
+          "\n", .method_lbl(ctype),
+          if (!is.null(ann_unsat)) paste0("\n", ann_unsat) else ""
+        ),
+        x = .axis_lbl(ctype, "cs"),
+        y = paste0("logFC (", case_lbl, " / ", ref_lbl, ")")
+      ) +
+      .theme_chain() +
+      ggplot2::theme(legend.position = "bottom") +
+      {
+        x_vals <- df_pts$analysis_chain_cs
+        x_min  <- min(x_vals, na.rm = TRUE)
+        x_max  <- max(x_vals, na.rm = TRUE)
+        if (!is.null(trend_x_step_unsat) && is.numeric(trend_x_step_unsat)) {
+          brks <- seq(floor(x_min / trend_x_step_unsat) * trend_x_step_unsat,
+                      ceiling(x_max / trend_x_step_unsat) * trend_x_step_unsat,
+                      by = trend_x_step_unsat)
+          ggplot2::scale_x_continuous(
+            breaks = brks,
+            expand = ggplot2::expansion(mult = c(0.05, 0.05))
+          )
+        } else {
+          ggplot2::scale_x_continuous(
+            expand = ggplot2::expansion(mult = c(0.05, 0.05))
+          )
+        }
+      }
 
     plots[[paste0("trend_unsat_", cls)]] <- p
   }
