@@ -664,6 +664,11 @@ parse_lipid_chains <- function(
 #'   \code{"Reference"}.
 #' @param fdr_thresh Numeric(1). FDR threshold used to mark significant
 #'   lipids in tile plot cell labels. Default: \code{0.05}.
+#' @param tile_label Character(1). What to display inside each tile cell.
+#'   \code{"both"} (default) shows total lipids and significant count
+#'   (e.g. \code{"22 (4*)"}); \code{"n"} shows only the total count;
+#'   \code{"sig"} shows only the significant count; \code{"none"} shows
+#'   no text (colour gradient only).
 #' @param min_n_tile Integer(1). Minimum chain observations per class to
 #'   produce a tile plot. Default: \code{4L}.
 #' @param min_n_trend Integer(1). Minimum chain observations per class to
@@ -685,9 +690,12 @@ plot_chains <- function(
     case_lbl   = "Case",
     ref_lbl    = "Reference",
     fdr_thresh = 0.05,
+    tile_label  = c("both", "n", "sig", "none"),
     min_n_tile  = 4L,
     min_n_trend = 5L
 ) {
+
+  tile_label <- match.arg(tile_label)
 
   df <- chains_result$parsed
 
@@ -742,21 +750,40 @@ plot_chains <- function(
         midpoint = 0, low = "#2166AC", mid = "white", high = "#E63946",
         name = "weighted\nmean logFC"
       ) +
-      ggplot2::geom_text(
-        ggplot2::aes(label = paste0(
-          n_lip_cell,
-          ifelse(n_sig_cell > 0,
-                 paste0(" (", n_sig_cell, "*)"), "")
-        )),
-        size = 3, color = "grey20"
-      ) +
+      {
+        if (tile_label != "none") {
+          lbl_expr <- switch(tile_label,
+            both = paste0(
+              tile$n_lip_cell,
+              ifelse(tile$n_sig_cell > 0,
+                     paste0(" (", tile$n_sig_cell, "*)"), "")
+            ),
+            n    = as.character(tile$n_lip_cell),
+            sig  = ifelse(tile$n_sig_cell > 0,
+                          paste0("(", tile$n_sig_cell, "*)"), "")
+          )
+          ggplot2::geom_text(
+            data = cbind(tile, .lbl = lbl_expr),
+            ggplot2::aes(label = .lbl),
+            size = 3, color = "grey20"
+          )
+        } else {
+          NULL
+        }
+      } +
       ggplot2::labs(
         title    = paste0(cls, " -- Chain Distribution"),
         subtitle = paste0(
           case_lbl, " vs ", ref_lbl, "  |  n = ", n_lip, " lipids  |  ",
           .method_lbl(ctype), "\n",
-          "fill = weighted mean logFC  |  n (n_sig*): lipids per cell",
-          if (has_sig) paste0(" (FDR < ", fdr_thresh, ")") else ""
+          switch(tile_label,
+            both = paste0("fill = weighted mean logFC  |  n (n_sig*): lipids per cell",
+                          if (has_sig) paste0(" (FDR < ", fdr_thresh, ")") else ""),
+            n    = "fill = weighted mean logFC  |  n: lipids per cell",
+            sig  = paste0("fill = weighted mean logFC  |  (n_sig*): significant lipids per cell",
+                          if (has_sig) paste0(" (FDR < ", fdr_thresh, ")") else ""),
+            none = "fill = weighted mean logFC"
+          )
         ),
         x = .axis_lbl(ctype, "cs"),
         y = .axis_lbl(ctype, "cl")
