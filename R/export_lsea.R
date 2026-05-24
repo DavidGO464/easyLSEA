@@ -39,11 +39,16 @@
 #'     chain_results.csv
 #'     chain_parsed.csv
 #'   plots/
-#'     lsea_bubble_ks.pdf
-#'     lsea_bubble_fgsea.pdf
-#'     chain_tile_<CLASS>.pdf
-#'     chain_trend_length_<CLASS>.pdf
-#'     chain_trend_unsat_<CLASS>.pdf
+#'     lsea/
+#'       bubble_ks.pdf
+#'       bubble_fgsea.pdf
+#'     chains/
+#'       tile/
+#'         tile_PC.pdf
+#'         tile_TG.pdf  ...
+#'       trend/
+#'         trend_length_PC.pdf
+#'         trend_unsat_PC.pdf  ...
 #'   results.xlsx
 #'   report.html
 #' }
@@ -204,14 +209,19 @@ export_lsea <- function(
   if (length(plot_formats) > 0L && !is.null(plots_slot)) {
 
     plt_dir <- file.path(out_dir, "plots")
-    dir.create(plt_dir, showWarnings = FALSE)
 
-    # Flatten all plots from $lsea and $chains into one named list
-    all_plots <- c(
-      if (!is.null(plots_slot$lsea))   plots_slot$lsea,
-      if (!is.null(plots_slot$chains)) plots_slot$chains
-    )
-    all_plots <- Filter(Negate(is.null), all_plots)
+    # Subdirectory routing: lsea/ | chains/tile/ | chains/trend/
+    .plot_subdir <- function(name) {
+      if (grepl("^(bubble|bar|dot)", name))          file.path(plt_dir, "lsea")
+      else if (grepl("^tile_",       name))          file.path(plt_dir, "chains", "tile")
+      else if (grepl("^trend_",      name))          file.path(plt_dir, "chains", "trend")
+      else                                           plt_dir
+    }
+
+    # Build named list: lsea plots + chain plots
+    lsea_plots   <- if (!is.null(plots_slot$lsea))   plots_slot$lsea   else list()
+    chain_plots  <- if (!is.null(plots_slot$chains)) plots_slot$chains else list()
+    all_plots    <- Filter(Negate(is.null), c(lsea_plots, chain_plots))
 
     if (length(all_plots) == 0L && verbose) {
       message("  Plots: none available (run easyLSEA with plots = TRUE)")
@@ -223,8 +233,10 @@ export_lsea <- function(
         plt <- all_plots[[plt_name]]
         if (!inherits(plt, "ggplot")) next
 
-        path <- file.path(plt_dir,
-                          paste0(plt_name, ".", dev))
+        sub <- .plot_subdir(plt_name)
+        dir.create(sub, recursive = TRUE, showWarnings = FALSE)
+
+        path <- file.path(sub, paste0(plt_name, ".", dev))
 
         tryCatch({
           if (dev == "pdf") {
@@ -244,7 +256,8 @@ export_lsea <- function(
         })
       }
       if (verbose)
-        message("  ", toupper(dev), ": ", n_saved, " plot(s) -> plots/")
+        message("  ", toupper(dev), ": ", n_saved,
+                " plot(s) -> plots/lsea/ | plots/chains/tile/ | plots/chains/trend/")
     }
   } else if (length(plot_formats) > 0L && is.null(plots_slot) && verbose) {
     message("  Plots: skipped (no plots in result -- ",
