@@ -1,4 +1,8 @@
 # R/lsea.R
+
+# Suppress R CMD check NOTEs for ggplot2 aes() column names used
+# inside plot_distribution() via tidy evaluation.
+utils::globalVariables(c(".data", "Convergence", "label"))
 # Lipid Set Enrichment Analysis -- KS and fgsea engines.
 # Source: LipidEnrichment_unified_v8.R
 #
@@ -662,6 +666,9 @@ run_lsea <- function(
 #'   Default: \code{0.05}.
 #' @param case_lbl Character(1). Case label for plot annotations.
 #' @param ref_lbl Character(1). Reference label for plot annotations.
+#' @param bubble_label Character vector. Which statistics to display next to
+#'   each bubble. Any subset of \code{"FDR"}, \code{"DS"} (KS plots only),
+#'   \code{"NES"} (fgsea plots only), and \code{"n"}. Default: all four.
 #'
 #' @return Named list of \code{ggplot} objects.
 #'
@@ -969,6 +976,7 @@ plot_lsea <- function(
 #'
 #' @importFrom ggplot2 ggplot aes geom_hline geom_boxplot geom_jitter geom_label scale_color_manual coord_cartesian labs theme_bw theme element_text element_blank unit
 #' @importFrom stats median IQR quantile
+#' @importFrom grDevices adjustcolor
 #'
 #' @export
 plot_distribution <- function(

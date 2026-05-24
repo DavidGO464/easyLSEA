@@ -9,7 +9,8 @@ plot_lsea(
   which = c("bubble_ks", "bubble_fgsea", "bubble_combined", "barplot", "running_sum"),
   fdr_thresh = 0.05,
   case_lbl = "Case",
-  ref_lbl = "Reference"
+  ref_lbl = "Reference",
+  bubble_label = c("FDR", "DS", "NES", "n")
 )
 }
 \arguments{
@@ -25,6 +26,10 @@ Default: \code{0.05}.}
 \item{case_lbl}{Character(1). Case label for plot annotations.}
 
 \item{ref_lbl}{Character(1). Reference label for plot annotations.}
+
+\item{bubble_label}{Character vector. Which statistics to display next to
+each bubble. Any subset of \code{"FDR"}, \code{"DS"} (KS plots only),
+\code{"NES"} (fgsea plots only), and \code{"n"}. Default: all four.}
 }
 \value{
 Named list of \code{ggplot} objects.
