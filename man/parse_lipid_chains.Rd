@@ -10,6 +10,7 @@ parse_lipid_chains(
   class_col = "LipidClass",
   shorthand_col = "Shorthand",
   rank_col = "Confidence_rank",
+  min_rank = "E",
   cls_config = default_chain_config()
 )
 }
@@ -30,15 +31,20 @@ shorthand column used as fallback for sn-2 and single-chain parsing when
 the primary name is a common name. Default: \code{"Shorthand"}.}
 
 \item{rank_col}{Character(1) or \code{NULL}. Name of a confidence-rank
-column. Rows with rank \code{"P"} or \code{NA} are excluded from
-analysis. Set to \code{NULL} to skip rank filtering. Default:
+column. Rows with rank \code{"P"} or \code{NA} are always excluded.
+Set to \code{NULL} to skip rank filtering entirely. Default:
 \code{"Confidence_rank"}.}
+
+\item{min_rank}{Character(1). Minimum confidence rank to include in
+analysis. Ranks are ordered \code{A > B > C > D > E > P}. Setting
+\code{min_rank = "B"} includes only ranks A and B, excluding C, D, E
+and P. Default: \code{"E"} (include all except P and NA).}
 
 \item{cls_config}{Named list from \code{\link{default_chain_config}}.
 Override individual elements to change class routing.}
 }
 \value{
-A named list with three elements:
+A named list with two elements:
 \describe{
 \item{\code{parsed}}{Long-format \code{data.frame} with one row per
 chain observation. Contains all columns from \code{data} plus chain
@@ -47,13 +53,6 @@ fields (\code{analysis_chain_cl}, \code{analysis_chain_cs},
 \item{\code{summary}}{Per-lipid parsing log \code{data.frame} with
 columns \code{LipidName}, \code{LipidClass},
 \code{Confidence_rank}, \code{status}, and \code{chain_type}.}
-\item{\code{wide}}{Wide-format \code{data.frame} with one row per
-lipid. Columns \code{sn1}, \code{sn2}, \code{sn3}, \code{sn4}
-contain individual acyl chain positions (e.g. \code{"18:1"}), and
-\code{total_carbons} and \code{total_unsat} give the summed totals.
-For cardiolipins (CL), all four sn positions are populated.
-For sphingolipids, \code{sn1} = sphingoid base, \code{sn2} =
-N-acyl chain.}
 }
 }
 \description{
@@ -70,7 +69,6 @@ annotated <- annotate_lipids(lipid_example)
 chains <- parse_lipid_chains(annotated)
 head(chains$parsed)
 head(chains$summary)
-head(chains$wide)
 }
 
 }
