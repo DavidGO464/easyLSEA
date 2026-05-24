@@ -738,18 +738,15 @@ plot_lsea <- function(
         #   Left — accommodate the largest bubble radius bleeding past its center.
         #     Bubble size range = c(3,12) pt mapped to N_group.
         #     Largest bubble radius ≈ 12pt ≈ 4mm → in data units: 4/120 * x_range.
-        label_chars   <- 38L          # char count for KS label + 20% safety margin
+        label_chars   <- 32L          # conservative char count for KS label
         char_mm       <- 2.1          # mm per char at geom_text size=3
         plot_width_mm <- 120          # approx panel width in mm
         label_data_units <- (label_chars * char_mm / plot_width_mm) * x_range
         nudge_data_units <- max_score * 0.06
         right_add <- label_data_units + nudge_data_units
 
-        # Left expansion: the largest bubble (max N_group) bleeds left of its
-        # center. We can't know the exact pixel radius without rendering, so we
-        # use a conservative 15% of x_range — enough to clear even the biggest
-        # bubble at any panel width, without over-padding.
-        left_add  <- x_range * 0.15
+        bubble_radius_mm  <- 4        # approx max bubble radius in mm
+        left_add  <- (bubble_radius_mm / plot_width_mm) * x_range
 
         p <- ggplot2::ggplot(
           dat,
@@ -809,7 +806,6 @@ plot_lsea <- function(
           )
         attr(p, "n_sets")   <- nrow(dat)
         attr(p, "sig_only") <- sig_only
-        attr(p, "x_range")  <- x_range
         p
       }
 
@@ -855,15 +851,15 @@ plot_lsea <- function(
 
         # Dynamic axis expansion (same logic as .make_bubble_ks):
         #   fgsea label: "FDR=X.Xe-XX   NES=+X.XX   n=XXX" ~ 32 chars
-        label_chars   <- 38L
+        label_chars   <- 32L
         char_mm       <- 2.1
         plot_width_mm <- 120
         label_data_units <- (label_chars * char_mm / plot_width_mm) * x_range
         nudge_data_units <- max_nes * 0.06
         right_add <- label_data_units + nudge_data_units
 
-        # Left expansion: same logic as .make_bubble_ks.
-        left_add <- x_range * 0.15
+        bubble_radius_mm <- 4
+        left_add <- (bubble_radius_mm / plot_width_mm) * x_range
 
         p <- ggplot2::ggplot(
           dat,
@@ -921,7 +917,6 @@ plot_lsea <- function(
           )
         attr(p, "n_sets")   <- nrow(dat)
         attr(p, "sig_only") <- sig_only
-        attr(p, "x_range")  <- x_range
         p
       }
 
@@ -1075,7 +1070,7 @@ plot_distribution <- function(
   }
 
   # -- Order groups by median logFC -------------------------------------------
-  med_order <- tapply(plot_df[[fc_col]], plot_df$Group, median, na.rm = TRUE)
+  med_order <- tapply(plot_df[[fc_col]], plot_df$Group, stats::median, na.rm = TRUE)
   set_order <- names(sort(med_order))
   plot_df$Group <- factor(plot_df$Group, levels = set_order)
 
@@ -1083,7 +1078,7 @@ plot_distribution <- function(
   y_range      <- range(plot_df[[fc_col]], na.rm = TRUE)
   y_span       <- diff(y_range)
   y_whisker_max <- max(tapply(plot_df[[fc_col]], plot_df$Group, function(x) {
-    quantile(x, 0.75, na.rm = TRUE) + 1.5 * IQR(x, na.rm = TRUE)
+    stats::quantile(x, 0.75, na.rm = TRUE) + 1.5 * stats::IQR(x, na.rm = TRUE)
   }), na.rm = TRUE)
   y_top         <- max(y_range[2], y_whisker_max, na.rm = TRUE)
   label_gap     <- y_span * 0.10
