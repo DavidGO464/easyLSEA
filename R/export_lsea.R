@@ -267,12 +267,22 @@ export_lsea <- function(
           # those. Otherwise auto-size based on number of groups (n_sets).
           n_sets   <- attr(plt, "n_sets")
           sig_only <- isTRUE(attr(plt, "sig_only"))
+          x_range  <- attr(plt, "x_range")   # data units span of x axis
           is_bubble <- grepl("^bubble", plt_name)
 
           w <- if (!is.null(plot_width)) {
             plot_width                              # user override
-          } else if (!is.null(n_sets) && is_bubble) {
-            max(8, 1 + n_sets * 0.45)               # bubble: right-side labels
+          } else if (is_bubble) {
+            # Bubble plot width scales with the x-axis data range, not n_sets.
+            # n_sets controls height (groups on y-axis); width is driven by
+            # the data span + right-side label text.
+            # Formula:
+            #   - base: 4.5 in (y-axis labels + legend)
+            #   - panel: proportional to x_range (wider data = wider panel)
+            #     anchored so that x_range=3.5 (typical 01_Class) → 5.5 in panel
+            #   - floor: 10 in total (covers narrow-range levels like 02_LMAPS)
+            x_r <- if (!is.null(x_range) && x_range > 0) x_range else 3.5
+            max(10, 4.5 + x_r * 1.6)
           } else if (!is.null(n_sets)) {
             max(8, 1 + n_sets * 0.7)                # dist: 2-line labels
           } else 8                                   # fallback default
@@ -280,7 +290,7 @@ export_lsea <- function(
           h <- if (!is.null(plot_height)) {
             plot_height                             # user override
           } else if (!is.null(n_sets) && is_bubble) {
-            max(6, n_sets * 0.42)                   # bubble: vertical room
+            max(5, 1.5 + n_sets * 0.42)             # bubble: vertical room per group
           } else if (!is.null(n_sets) && !is_bubble) {
             if (sig_only) max(7, n_sets * 1.4)      # sig dist: taller
             else 8                                    # full dist

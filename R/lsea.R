@@ -727,6 +727,30 @@ plot_lsea <- function(
         dat <- dat[order(dat$DirectionalScore), ]
         dat$Group <- factor(dat$Group, levels = dat$Group)
         max_score <- max(abs(dat$DirectionalScore), na.rm = TRUE)
+        x_range   <- diff(range(dat$DirectionalScore, na.rm = TRUE))
+
+        # Dynamic axis expansion:
+        #   Right — estimate label width in data units.
+        #     Label format: "FDR=X.Xe-XX   DS=+X.XX   n=XXX"
+        #     ~30 chars at text size 3 (≈2.1 mm/char) = ~63 mm
+        #     Convert to data units: 63mm / (plot_width_mm / x_range)
+        #     We approximate plot_width as 120mm (safe for 8" wide PDF minus legend).
+        #   Left — accommodate the largest bubble radius bleeding past its center.
+        #     Bubble size range = c(3,12) pt mapped to N_group.
+        #     Largest bubble radius ≈ 12pt ≈ 4mm → in data units: 4/120 * x_range.
+        label_chars   <- 38L          # char count for KS label + 20% safety margin
+        char_mm       <- 2.1          # mm per char at geom_text size=3
+        plot_width_mm <- 120          # approx panel width in mm
+        label_data_units <- (label_chars * char_mm / plot_width_mm) * x_range
+        nudge_data_units <- max_score * 0.06
+        right_add <- label_data_units + nudge_data_units
+
+        # Left expansion: the largest bubble (max N_group) bleeds left of its
+        # center. We can't know the exact pixel radius without rendering, so we
+        # use a conservative 15% of x_range — enough to clear even the biggest
+        # bubble at any panel width, without over-padding.
+        left_add  <- x_range * 0.15
+
         p <- ggplot2::ggplot(
           dat,
           ggplot2::aes(x = DirectionalScore, y = Group,
@@ -744,16 +768,18 @@ plot_lsea <- function(
                              MoreArgs = list(parts = bubble_label),
                              fdr = FDR_LSEA, ds = DirectionalScore, n = N_group)
             ),
-            nudge_x = max_score * 0.06, hjust = 0,
+            nudge_x = nudge_data_units, hjust = 0,
             size = 3.0, fontface = "bold", color = "grey25",
             show.legend = FALSE
           ) +
           ggplot2::scale_x_continuous(
-            expand = ggplot2::expansion(mult = c(0.05, 0.45))
+            expand = ggplot2::expansion(add = c(left_add, right_add))
           ) +
+          ggplot2::coord_cartesian(clip = "off") +
           ggplot2::scale_color_gradient2(
             low = "#2166AC", mid = "grey85", high = "#E63946",
-            midpoint = 0, name = "Directional\nScore"
+            midpoint = 0, name = "Directional\nScore",
+            limits = c(-max_score, max_score)
           ) +
           ggplot2::scale_size_continuous(range = c(3, 12), name = "N lipids") +
           ggplot2::scale_alpha_manual(
@@ -779,9 +805,11 @@ plot_lsea <- function(
                                                       color = "grey50"),
             axis.text.y      = ggplot2::element_text(size = 10, face = "bold"),
             panel.grid.minor = ggplot2::element_blank(),
-            plot.margin      = ggplot2::margin(t = 8, r = 20, b = 8, l = 8)
+            plot.margin      = ggplot2::margin(t = 8, r = 20, b = 8, l = 20)
           )
-        attr(p, "n_sets") <- nrow(dat)
+        attr(p, "n_sets")   <- nrow(dat)
+        attr(p, "sig_only") <- sig_only
+        attr(p, "x_range")  <- x_range
         p
       }
 
@@ -820,6 +848,23 @@ plot_lsea <- function(
         dat <- dat[order(dat$NES), ]
         dat$Group <- factor(dat$Group, levels = dat$Group)
         max_nes <- max(abs(dat$NES), na.rm = TRUE)
+        x_range <- diff(range(dat$NES, na.rm = TRUE))
+        # When all NES values are identical (e.g. single-point sig plot),
+        # x_range = 0 which would zero out the expansion. Use max_nes as proxy.
+        if (x_range < 1e-6) x_range <- max_nes
+
+        # Dynamic axis expansion (same logic as .make_bubble_ks):
+        #   fgsea label: "FDR=X.Xe-XX   NES=+X.XX   n=XXX" ~ 32 chars
+        label_chars   <- 38L
+        char_mm       <- 2.1
+        plot_width_mm <- 120
+        label_data_units <- (label_chars * char_mm / plot_width_mm) * x_range
+        nudge_data_units <- max_nes * 0.06
+        right_add <- label_data_units + nudge_data_units
+
+        # Left expansion: same logic as .make_bubble_ks.
+        left_add <- x_range * 0.15
+
         p <- ggplot2::ggplot(
           dat,
           ggplot2::aes(x = NES, y = Group, size = N_leading, color = NES)
@@ -836,16 +881,18 @@ plot_lsea <- function(
                              MoreArgs = list(parts = bubble_label),
                              fdr = FDR_fgsea, nes = NES, n = N_leading)
             ),
-            nudge_x = max_nes * 0.06, hjust = 0,
+            nudge_x = nudge_data_units, hjust = 0,
             size = 3.0, fontface = "bold", color = "grey25",
             show.legend = FALSE
           ) +
           ggplot2::scale_x_continuous(
-            expand = ggplot2::expansion(mult = c(0.05, 0.45))
+            expand = ggplot2::expansion(add = c(left_add, right_add))
           ) +
+          ggplot2::coord_cartesian(clip = "off") +
           ggplot2::scale_color_gradient2(
             low = "#2166AC", mid = "grey85", high = "#E63946",
-            midpoint = 0, name = "NES"
+            midpoint = 0, name = "NES",
+            limits = c(-max_nes, max_nes)
           ) +
           ggplot2::scale_size_continuous(range = c(3, 12), name = "N lipids") +
           ggplot2::scale_alpha_manual(
@@ -870,9 +917,11 @@ plot_lsea <- function(
                                                       color = "grey50"),
             axis.text.y      = ggplot2::element_text(size = 10, face = "bold"),
             panel.grid.minor = ggplot2::element_blank(),
-            plot.margin      = ggplot2::margin(t = 8, r = 20, b = 8, l = 8)
+            plot.margin      = ggplot2::margin(t = 8, r = 20, b = 8, l = 20)
           )
-        attr(p, "n_sets") <- nrow(dat)
+        attr(p, "n_sets")   <- nrow(dat)
+        attr(p, "sig_only") <- sig_only
+        attr(p, "x_range")  <- x_range
         p
       }
 
