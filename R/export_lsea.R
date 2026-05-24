@@ -44,6 +44,7 @@
 #'     lsea_combined.csv
 #'     chain_results.csv
 #'     chain_parsed.csv
+#'     chain_wide.csv
 #'   plots/
 #'     lsea/
 #'       bubble_ks.pdf
@@ -150,7 +151,8 @@ export_lsea <- function(
       lsea_results_fgsea  = if (!is.null(lsea_slot$fgsea))    lsea_slot$fgsea,
       lsea_combined       = if (!is.null(lsea_slot$combined))  lsea_slot$combined,
       chain_results       = if (!is.null(chains_slot$summary)) chains_slot$summary,
-      chain_parsed        = if (!is.null(chains_slot$parsed))  chains_slot$parsed
+      chain_parsed        = if (!is.null(chains_slot$parsed))  chains_slot$parsed,
+      chain_wide          = if (!is.null(chains_slot$wide))    chains_slot$wide
     )
     tables <- Filter(Negate(is.null), tables)
 
@@ -193,6 +195,7 @@ export_lsea <- function(
     .add_sheet(wb, "LSEA_combined",lsea_slot$combined)
     .add_sheet(wb, "Chain_summary", chains_slot$summary)
     .add_sheet(wb, "Chain_parsed",  chains_slot$parsed)
+    .add_sheet(wb, "Chain_wide",    chains_slot$wide)
 
     # Metadata sheet
     openxlsx::addWorksheet(wb, "Metadata")
