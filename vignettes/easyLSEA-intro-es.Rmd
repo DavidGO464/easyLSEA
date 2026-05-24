@@ -1,0 +1,414 @@
+---
+title: "Introducción a easyLSEA"
+author: "Autores de easyLSEA"
+date: "`r Sys.Date()`"
+output:
+  rmarkdown::html_vignette:
+    toc: true
+    toc_depth: 3
+vignette: >
+  %\VignetteIndexEntry{Introducción a easyLSEA}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse  = TRUE,
+  comment   = "#>",
+  eval      = FALSE
+)
+```
+
+## Descripción general
+
+**easyLSEA** proporciona un pipeline completo para el Análisis de Enriquecimiento
+de Conjuntos de Lípidos (LSEA, por sus siglas en inglés) en R. A partir de una
+tabla de abundancias lipídicas diferenciales, el paquete anota los lípidos en
+grupos biológicos, evalúa si dichos grupos están sistemáticamente desplazados
+entre condiciones, y genera visualizaciones listas para publicación: bubble
+plots, gráficos de distribución y análisis de cadenas de ácidos grasos.
+
+El paquete implementa dos motores de enriquecimiento complementarios:
+
+- **Kolmogorov–Smirnov (KS)** — evalúa si la distribución completa de logFC de
+  un conjunto lipídico difiere del fondo. Es sensible a efectos moderados
+  distribuidos entre muchos miembros del conjunto.
+- **fgsea** — evalúa si los miembros del conjunto se concentran en los extremos
+  de la lista ordenada. Es sensible a un número pequeño de lípidos fuertemente
+  regulados.
+
+Ejecutar ambos motores y comparar sus resultados (análisis de convergencia)
+ofrece una imagen más completa de la remodelación lipídica que cualquier método
+por separado.
+
+---
+
+## Instalación
+
+Instalar la versión estable desde CRAN:
+
+```{r install-cran}
+install.packages("easyLSEA")
+```
+
+O la versión de desarrollo desde GitHub:
+
+```{r install-github}
+# install.packages("remotes")
+remotes::install_github("DavidGO464/easyLSEA")
+```
+
+Para activar el motor fgsea, instalar la dependencia opcional de Bioconductor:
+
+```{r install-fgsea}
+BiocManager::install("fgsea")
+```
+
+---
+
+## Formato de los datos de entrada
+
+`easyLSEA` espera un `data.frame` con al menos las siguientes columnas:
+
+| Columna | Descripción |
+|---------|-------------|
+| `LipidName` | Identificador del lípido en notación abreviada estándar (e.g. `PC 36:4`, `TG 54:3`) |
+| `logFC` | Cambio en log2 (caso vs referencia) |
+| `P.Value` | p-valor crudo (sin ajustar) — usado para el ranking pi-valor de fgsea |
+
+Columnas adicionales que se usan cuando están presentes:
+
+| Columna | Uso |
+|---------|-----|
+| `adj.P.Val` | Conteo de lípidos significativamente alterados |
+| `Confidence_rank` | Filtrado por confianza de anotación |
+| `Shorthand` | Nombre alternativo del lípido |
+
+Los nombres de columna son configurables mediante los argumentos `lipid_col`,
+`fc_col` y `pval_col`.
+
+---
+
+## Inicio rápido
+
+El pipeline completo se ejecuta con una sola llamada a `easyLSEA()`:
+
+```{r quickstart}
+library(easyLSEA)
+
+resultado <- easyLSEA(
+  data      = mis_datos_lipidicos,
+  lipid_col = "LipidName",
+  fc_col    = "logFC",
+  pval_col  = "P.Value",
+  case_lbl  = "NASH",
+  ref_lbl   = "Control",
+  engine    = "both"   # ejecutar KS y fgsea
+)
+```
+
+Esto devuelve un objeto de clase `easyLSEA_result` con cinco slots descritos
+en la sección siguiente.
+
+---
+
+## Entendiendo el resultado
+
+### `resultado$meta`
+
+Lista con metadatos del análisis: fecha, etiquetas de comparación, motor
+utilizado, número de lípidos y la llamada original a la función.
+
+```{r meta}
+resultado$meta$date
+resultado$meta$case_lbl
+resultado$meta$n_lipids
+```
+
+### `resultado$lsea`
+
+Contiene las estadísticas de enriquecimiento. Los sub-elementos principales son:
+
+```{r lsea}
+# Resultados KS — una fila por conjunto lipídico por nivel de agrupación
+head(resultado$lsea$ks)
+
+# Resultados fgsea
+head(resultado$lsea$fgsea)
+
+# Tabla combinada con columna de Convergencia
+head(resultado$lsea$combined)
+```
+
+**Columnas principales en los resultados KS:**
+
+| Columna | Descripción |
+|---------|-------------|
+| `Group` | Nombre del conjunto lipídico (e.g. `PC`, `Glycerolipids`) |
+| `Level` | Nivel de agrupación (`LipidClass`, `LipidCategory_LMAPS`, `LipidCategory_functional`) |
+| `N_group` | Número de lípidos en el conjunto |
+| `DirectionalScore` | Diferencia de medias estandarizada (análogo al *d* de Cohen). Positivo = aumentado en el caso. |
+| `KS_pval` | p-valor KS bilateral |
+| `FDR_LSEA` | FDR ajustado por BH |
+| `DS_perm_pval` | p-valor de permutación para el DirectionalScore |
+| `ContributingLipids_KS` | Lípidos en el lado enriquecido del punto de máxima divergencia CDF |
+
+**Columnas principales en los resultados fgsea:**
+
+| Columna | Descripción |
+|---------|-------------|
+| `NES` | Puntuación de Enriquecimiento Normalizada. Positivo = enriquecido hacia el tope de la lista (aumentado en el caso). |
+| `FDR_fgsea` | FDR ajustado por BH de fgsea |
+| `N_leading` | Tamaño del leading edge |
+| `LeadingEdge` | Lípidos en el leading edge |
+| `rank_metric` | Métrica de ranking utilizada (`pi_value`, `logFC` o `t_stat`) |
+
+**La columna `Convergence`** en la tabla combinada clasifica cada conjunto como:
+
+| Valor | Significado |
+|-------|-------------|
+| `KS+fgsea [strongest]` | Significativo por ambos motores — máxima confianza |
+| `KS only [distributed effect]` | Desplazamiento moderado distribuido en muchos lípidos |
+| `fgsea only [extreme-driven]` | Pocos lípidos fuertemente regulados impulsan la señal |
+| `Neither` | No significativo por ningún motor |
+
+### `resultado$chains`
+
+Resultados del análisis de cadenas de ácidos grasos, disponible cuando
+`run_chains = TRUE`:
+
+```{r chains}
+# Una fila por cadena acilo por lípido
+head(resultado$chains$parsed)
+
+# Resumen del estado de parseo por lípido
+head(resultado$chains$summary)
+```
+
+### `resultado$plots`
+
+Lista de objetos `ggplot2`, disponible cuando `plots = TRUE`:
+
+```{r plots-list}
+# Ver todos los plots disponibles
+names(resultado$plots$lsea)
+names(resultado$plots$chains)
+```
+
+Convención de nombres para los bubble plots de LSEA:
+
+| Nombre | Descripción |
+|--------|-------------|
+| `bubble_ks_01_Class` | Bubble plot KS — nivel de clase lipídica |
+| `bubble_ks_sig_01_Class` | Bubble plot KS — solo conjuntos significativos |
+| `bubble_fgsea_01_Class` | Bubble plot fgsea — nivel de clase lipídica |
+| `bubble_fgsea_sig_01_Class` | Bubble plot fgsea — solo conjuntos significativos |
+| `dist_01_Class` | Distribución (boxplot) — nivel de clase lipídica |
+
+Niveles: `01_Class` (clase lipídica), `02_LMAPS` (categoría LIPID MAPS),
+`03_Functional` (categoría funcional).
+
+### `resultado$input`
+
+Los datos de entrada anotados y las columnas de agrupación utilizadas:
+
+```{r input}
+# Datos anotados con LipidClass, LipidCategory_LMAPS, etc.
+head(resultado$input$data)
+
+# Columnas de agrupación evaluadas
+resultado$input$group_cols
+```
+
+---
+
+## Visualización de los gráficos
+
+Los gráficos individuales se pueden mostrar directamente:
+
+```{r view-plots}
+# Bubble plot KS — todas las clases lipídicas
+resultado$plots$lsea$bubble_ks_01_Class
+
+# Bubble plot fgsea — solo conjuntos significativos
+resultado$plots$lsea$bubble_fgsea_sig_01_Class
+
+# Gráfico de distribución — nivel de clase lipídica
+resultado$plots$lsea$dist_01_Class
+```
+
+Para personalizar las etiquetas del bubble plot:
+
+```{r bubble-label}
+# Regenerar plots mostrando solo FDR y n
+plots <- plot_lsea(
+  resultado$lsea,
+  case_lbl     = "NASH",
+  ref_lbl      = "Control",
+  bubble_label = c("FDR", "n")
+)
+```
+
+---
+
+## Exportación de resultados
+
+`export_lsea()` guarda todos los resultados en una carpeta con marca de tiempo:
+
+```{r export}
+export_lsea(
+  resultado,
+  dir    = "~/mis_resultados/",
+  format = c("csv", "excel", "pdf")
+)
+```
+
+Esto genera la siguiente estructura:
+
+```
+easyLSEA_NASH_vs_Control_2024-01-15_1430/
+  tables/
+    lsea_results_ks.csv
+    lsea_results_fgsea.csv
+    lsea_combined.csv
+    chain_results.csv
+  plots/
+    lsea/
+      01_Class/
+        bubble_ks_01_Class.pdf
+        bubble_ks_sig_01_Class.pdf
+        bubble_fgsea_01_Class.pdf
+        bubble_fgsea_sig_01_Class.pdf
+        dist_01_Class.pdf
+      02_LMAPS/  ...
+      03_Functional/  ...
+    chains/
+      tile/  ...
+      trend/  ...
+  results.xlsx
+```
+
+---
+
+## Uso avanzado
+
+### Ejecutar los motores por separado
+
+```{r advanced-separate}
+# Paso 1: anotar
+anotado <- annotate_lipids(mis_datos_lipidicos, lipid_col = "LipidName")
+
+# Paso 2: ejecutar el enriquecimiento
+lsea_res <- run_lsea(
+  data      = anotado,
+  fc_col    = "logFC",
+  engine    = "both",
+  case_lbl  = "NASH",
+  ref_lbl   = "Control"
+)
+
+# Paso 3: generar plots manualmente
+plots <- plot_lsea(
+  lsea_res,
+  case_lbl     = "NASH",
+  ref_lbl      = "Control",
+  fdr_thresh   = 0.05,
+  bubble_label = c("FDR", "DS", "NES", "n")
+)
+
+# Paso 4: gráfico de distribución para un nivel específico
+p_dist <- plot_distribution(
+  data        = anotado,
+  lsea_result = lsea_res,
+  group_col   = "LipidClass",
+  case_lbl    = "NASH",
+  ref_lbl     = "Control"
+)
+```
+
+### Cambiar la métrica de ranking de fgsea
+
+```{r fgsea-rank}
+# Por defecto: pi-valor = signo(logFC) × −log10(P.Value)
+# Combina magnitud del efecto y significancia estadística
+
+# Alternativa: solo logFC
+resultado_fc <- easyLSEA(
+  data        = mis_datos_lipidicos,
+  engine      = "fgsea",
+  fgsea_rank  = "logFC"
+)
+
+# Alternativa: estadístico t de LIMMA (requiere columna 't')
+resultado_t <- easyLSEA(
+  data        = mis_datos_lipidicos,
+  engine      = "fgsea",
+  fgsea_rank  = "t_stat"
+)
+```
+
+### Ajustar umbrales de significancia
+
+```{r thresholds}
+resultado <- easyLSEA(
+  data        = mis_datos_lipidicos,
+  min_n       = 5L,      # mínimo 5 lípidos por conjunto
+  n_perm      = 5000L,   # más permutaciones para DS_perm_pval
+  fgsea_nperm = 20000L   # más permutaciones para fgsea
+)
+```
+
+---
+
+## Interpretación de los resultados
+
+### KS vs fgsea — ¿cuál usar?
+
+Ambos motores evalúan la misma hipótesis nula (ausencia de enriquecimiento
+sistemático) pero son sensibles a patrones de señal distintos:
+
+- **KS** es potente cuando muchos lípidos de una clase se desplazan
+  moderadamente en la misma dirección. Un resultado KS significativo con
+  `DirectionalScore ≈ 0` sugiere una diferencia en varianza o forma de la
+  distribución, no un desplazamiento neto — interpretar con precaución.
+- **fgsea** es potente cuando un número reducido de lípidos genera una señal
+  extrema. Un resultado fgsea significativo sin respaldo del KS sugiere que el
+  enriquecimiento es impulsado por pocos lípidos, no por la clase en su conjunto.
+
+Los **resultados convergentes** (significativos por ambos motores) proporcionan
+la evidencia más sólida de remodelación coordinada de una clase lipídica.
+
+### El DirectionalScore
+
+El `DirectionalScore` es una diferencia de medias estandarizada (análogo al
+*d* de Cohen):
+
+```
+DS = (media_logFC_conjunto − media_logFC_fondo) / DS_combinada
+```
+
+Cuantifica la **dirección y magnitud** del desplazamiento, independientemente
+del p-valor KS. Un conjunto puede tener un p-valor KS significativo con un
+DirectionalScore cercano a cero — este patrón sugiere regulación heterogénea
+dentro del conjunto.
+
+### La métrica pi-valor
+
+Por defecto, fgsea ordena los lípidos por:
+
+```
+pi-valor = signo(logFC) × −log10(P.Value)
+```
+
+Esta métrica combina la dirección del cambio con la confianza estadística,
+dando mayor peso a los lípidos que están regulados de forma tanto intensa como
+significativa. Se prefiere al logFC solo cuando los p-valores están disponibles.
+
+---
+
+## Información de la sesión
+
+```{r session, eval = TRUE}
+sessionInfo()
+```
