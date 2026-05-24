@@ -33,7 +33,7 @@ test_that("easyLSEA() runs chain analysis by default", {
   result <- easyLSEA(MINIMAL_DATA, engine = "ks",
                      plots = FALSE, verbose = FALSE)
   expect_false(is.null(result$chains))
-  expect_named(result$chains, c("parsed", "summary"))
+  expect_named(result$chains, c("parsed", "summary", "wide"))
 })
 
 test_that("easyLSEA() skips chains when run_chains = FALSE", {

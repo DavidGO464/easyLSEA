@@ -184,7 +184,7 @@ test_that(".parse_single() extracts chain from CE notation", {
 test_that("parse_lipid_chains() returns a list with parsed and summary", {
   result <- parse_lipid_chains(ANNOTATED)
   expect_type(result, "list")
-  expect_named(result, c("parsed", "summary"))
+  expect_named(result, c("parsed", "summary", "wide"))
 })
 
 test_that("parse_lipid_chains() parsed data.frame has chain columns", {

@@ -362,7 +362,7 @@ default_chain_config <- function() {
 #' @param cls_config Named list from \code{\link{default_chain_config}}.
 #'   Override individual elements to change class routing.
 #'
-#' @return A named list with two elements:
+#' @return A named list with three elements:
 #'   \describe{
 #'     \item{\code{parsed}}{Long-format \code{data.frame} with one row per
 #'       chain observation. Contains all columns from \code{data} plus chain
@@ -371,6 +371,13 @@ default_chain_config <- function() {
 #'     \item{\code{summary}}{Per-lipid parsing log \code{data.frame} with
 #'       columns \code{LipidName}, \code{LipidClass},
 #'       \code{Confidence_rank}, \code{status}, and \code{chain_type}.}
+#'     \item{\code{wide}}{Wide-format \code{data.frame} with one row per
+#'       lipid. Columns \code{sn1}, \code{sn2}, \code{sn3}, \code{sn4}
+#'       contain individual acyl chain positions (e.g. \code{"18:1"}), and
+#'       \code{total_carbons} and \code{total_unsat} give the summed totals.
+#'       For cardiolipins (CL), all four sn positions are populated.
+#'       For sphingolipids, \code{sn1} = sphingoid base, \code{sn2} =
+#'       N-acyl chain.}
 #'   }
 #'
 #' @seealso \code{\link{default_chain_config}}, \code{plot_chains()}
@@ -382,6 +389,7 @@ default_chain_config <- function() {
 #' chains <- parse_lipid_chains(annotated)
 #' head(chains$parsed)
 #' head(chains$summary)
+#' head(chains$wide)
 #' }
 #'
 #' @export
@@ -494,10 +502,123 @@ parse_lipid_chains <- function(
     )
   }
 
+  parsed_df  <- if (length(parsed_rows)  > 0L) do.call(rbind, parsed_rows)  else data.frame()
+  summary_df <- if (length(summary_rows) > 0L) do.call(rbind, summary_rows) else data.frame()
+  wide_df    <- .build_wide(parsed_df, lipid_col = lipid_col)
+
   list(
-    parsed  = if (length(parsed_rows)  > 0L) do.call(rbind, parsed_rows)  else data.frame(),
-    summary = if (length(summary_rows) > 0L) do.call(rbind, summary_rows) else data.frame()
+    parsed  = parsed_df,
+    summary = summary_df,
+    wide    = wide_df
   )
+}
+
+
+# -- Wide summary builder ------------------------------------------------------
+
+#' Build a wide-format chain summary (one row per lipid)
+#'
+#' Collapses the long-format parsed output into one row per lipid, with
+#' individual sn positions as columns (sn1, sn2, sn3, sn4 for CL) and
+#' total carbon/unsaturation counts.
+#'
+#' Chain type mapping to sn columns:
+#'   sn2        -> sn1 (from sn1_cl/sn1_cs), sn2 (from sn2_cl/sn2_cs)
+#'   nacyl      -> sn_base (sphingoid base), sn_nacyl (N-acyl chain)
+#'   total      -> total only (individual positions not resolved)
+#'   single     -> sn1 only
+#'   long_format-> sn1, sn2, sn3, sn4 by order of appearance
+#'
+#' @param parsed data.frame. Output of parse_lipid_chains()$parsed.
+#' @param lipid_col Character(1). Lipid name column. Default: "LipidName".
+#' @return data.frame with one row per lipid.
+#'
+#' @noRd
+.build_wide <- function(parsed, lipid_col = "LipidName") {
+
+  if (is.null(parsed) || nrow(parsed) == 0L) return(data.frame())
+
+  # Base columns to carry through (one value per lipid)
+  base_cols <- intersect(
+    c(lipid_col, "LipidClass", "Confidence_rank", "chain_type",
+      "logFC", "adj.P.Val", "sig"),
+    names(parsed)
+  )
+
+  # Helper: format one chain as "CL:CS" string, e.g. "18:1"
+  .fmt <- function(cl, cs) {
+    cl <- suppressWarnings(as.numeric(cl))
+    cs <- suppressWarnings(as.numeric(cs))
+    ifelse(is.na(cl) | is.na(cs), NA_character_,
+           paste0(cl, ":", cs))
+  }
+
+  # Split by lipid name and collapse each group
+  lips <- split(parsed, parsed[[lipid_col]])
+
+  rows <- lapply(lips, function(df) {
+    base  <- df[1L, base_cols, drop = FALSE]
+    ctype <- df$chain_type[[1L]]
+    n     <- nrow(df)
+
+    # Total carbons and unsaturation
+    # For long_format (TG, PI, CL) total_cl may be NA — sum from individual chains
+    total_cl <- if ("total_cl" %in% names(df) && !all(is.na(df$total_cl))) {
+      df$total_cl[[1L]]
+    } else if ("analysis_chain_cl" %in% names(df) && !all(is.na(df$analysis_chain_cl))) {
+      sum(as.numeric(df$analysis_chain_cl), na.rm = TRUE)
+    } else NA_integer_
+
+    total_cs <- if ("total_cs" %in% names(df) && !all(is.na(df$total_cs))) {
+      df$total_cs[[1L]]
+    } else if ("analysis_chain_cs" %in% names(df) && !all(is.na(df$analysis_chain_cs))) {
+      sum(as.numeric(df$analysis_chain_cs), na.rm = TRUE)
+    } else NA_integer_
+
+    # Build sn position columns depending on chain type
+    if (ctype == "sn2") {
+      sn1   <- .fmt(df$sn1_cl[[1L]], df$sn1_cs[[1L]])
+      sn2   <- .fmt(df$sn2_cl[[1L]], df$sn2_cs[[1L]])
+      extra <- data.frame(sn1 = sn1, sn2 = sn2,
+                          sn3 = NA_character_, sn4 = NA_character_,
+                          stringsAsFactors = FALSE)
+
+    } else if (ctype == "nacyl") {
+      sn_base  <- .fmt(df$base_cl[[1L]],  df$base_cs[[1L]])
+      sn_nacyl <- .fmt(df$nacyl_cl[[1L]], df$nacyl_cs[[1L]])
+      extra <- data.frame(sn1 = sn_base, sn2 = sn_nacyl,
+                          sn3 = NA_character_, sn4 = NA_character_,
+                          stringsAsFactors = FALSE)
+
+    } else if (ctype == "long_format") {
+      # Chains ordered by appearance (sn1..sn4)
+      chains <- .fmt(df$analysis_chain_cl, df$analysis_chain_cs)
+      sn1 <- if (n >= 1L) chains[[1L]] else NA_character_
+      sn2 <- if (n >= 2L) chains[[2L]] else NA_character_
+      sn3 <- if (n >= 3L) chains[[3L]] else NA_character_
+      sn4 <- if (n >= 4L) chains[[4L]] else NA_character_
+      extra <- data.frame(sn1 = sn1, sn2 = sn2, sn3 = sn3, sn4 = sn4,
+                          stringsAsFactors = FALSE)
+
+    } else {
+      # total or single — no individual positions
+      extra <- data.frame(sn1 = NA_character_, sn2 = NA_character_,
+                          sn3 = NA_character_, sn4 = NA_character_,
+                          stringsAsFactors = FALSE)
+    }
+
+    cbind(base,
+          data.frame(total_carbons = total_cl,
+                     total_unsat   = total_cs,
+                     stringsAsFactors = FALSE),
+          extra,
+          row.names = NULL,
+          stringsAsFactors = FALSE)
+  })
+
+  out <- do.call(rbind, rows)
+  rownames(out) <- NULL
+  out
 }
 
 # -- Plot helpers (internal) ---------------------------------------------------
