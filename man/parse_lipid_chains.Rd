@@ -38,7 +38,7 @@ analysis. Set to \code{NULL} to skip rank filtering. Default:
 Override individual elements to change class routing.}
 }
 \value{
-A named list with two elements:
+A named list with three elements:
 \describe{
 \item{\code{parsed}}{Long-format \code{data.frame} with one row per
 chain observation. Contains all columns from \code{data} plus chain
@@ -47,6 +47,13 @@ fields (\code{analysis_chain_cl}, \code{analysis_chain_cs},
 \item{\code{summary}}{Per-lipid parsing log \code{data.frame} with
 columns \code{LipidName}, \code{LipidClass},
 \code{Confidence_rank}, \code{status}, and \code{chain_type}.}
+\item{\code{wide}}{Wide-format \code{data.frame} with one row per
+lipid. Columns \code{sn1}, \code{sn2}, \code{sn3}, \code{sn4}
+contain individual acyl chain positions (e.g. \code{"18:1"}), and
+\code{total_carbons} and \code{total_unsat} give the summed totals.
+For cardiolipins (CL), all four sn positions are populated.
+For sphingolipids, \code{sn1} = sphingoid base, \code{sn2} =
+N-acyl chain.}
 }
 }
 \description{
@@ -63,6 +70,7 @@ annotated <- annotate_lipids(lipid_example)
 chains <- parse_lipid_chains(annotated)
 head(chains$parsed)
 head(chains$summary)
+head(chains$wide)
 }
 
 }
