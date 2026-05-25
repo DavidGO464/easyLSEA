@@ -6,7 +6,7 @@ Authors@R:
            role = c("aut", "cre"),
            email = "david.guardamino@gmail.com",
            comment = c(ORCID = "0000-0002-3122-2218"))
-Description: Description: Provides biology-aware lipid set enrichment analysis (LSEA)
+Description: Provides biology-aware lipid set enrichment analysis (LSEA)
     for lipidomics data using dual engines: the Kolmogorov-Smirnov test
     and the fast gene set enrichment algorithm (fgsea). Annotates lipids
     into biological groups at three levels (lipid class, LIPID MAPS
@@ -31,9 +31,11 @@ Suggests:
     knitr,
     openxlsx,
     rmarkdown,
+    spelling,
     testthat (>= 3.0.0)
 URL: https://github.com/DavidGO464/easyLSEA
 BugReports: https://github.com/DavidGO464/easyLSEA/issues
 LazyData: true
 Config/testthat/edition: 3
 VignetteBuilder: knitr
+Language: en-US
