@@ -6,3 +6,5 @@
 ^doc$
 ^Meta$
 ^CITATION\.cff$
+^CRAN-SUBMISSION$
+^cran-comments\.md$
