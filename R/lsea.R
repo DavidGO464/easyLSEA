@@ -2,7 +2,8 @@
 
 # Suppress R CMD check NOTEs for ggplot2 aes() column names used
 # inside plot_distribution() via tidy evaluation.
-utils::globalVariables(c(".data", "Convergence", "label"))
+utils::globalVariables(c(".data", "Convergence", "label",
+                         "sig_label", "n_lip_pos", "w"))
 # Lipid Set Enrichment Analysis -- KS and fgsea engines.
 # Source: LipidEnrichment_unified_v8.R
 #

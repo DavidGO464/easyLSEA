@@ -10,7 +10,16 @@ plot_chains(
   ref_lbl = "Reference",
   fdr_thresh = 0.05,
   min_n_tile = 4L,
-  min_n_trend = 5L
+  min_n_trend = 5L,
+  smooth_method = c("loess", "lm"),
+  smooth_span = 0.75,
+  smooth_weighted = TRUE,
+  smooth_se = TRUE,
+  show_points = TRUE,
+  tile_label = c("both", "n", "sig", "none"),
+  trend_test = c("spearman", "lm", "none"),
+  trend_x_step_length = 2L,
+  trend_x_step_unsat = 1L
 )
 }
 \arguments{
@@ -22,14 +31,66 @@ plot_chains(
 \item{ref_lbl}{Character(1). Label for the reference group. Default:
 \code{"Reference"}.}
 
-\item{fdr_thresh}{Numeric(1). FDR threshold used to mark significant
-lipids in tile plot cell labels. Default: \code{0.05}.}
+\item{fdr_thresh}{Numeric(1). FDR threshold to colour individual lipid
+points in trend plots (red = FDR sig, grey = NS) and to label
+significant counts in tile cells. Default: \code{0.05}.}
 
 \item{min_n_tile}{Integer(1). Minimum chain observations per class to
 produce a tile plot. Default: \code{4L}.}
 
 \item{min_n_trend}{Integer(1). Minimum chain observations per class to
 produce trend plots. Default: \code{5L}.}
+
+\item{smooth_method}{Character(1). Smoothing method for trend plots.
+\code{"loess"} (default) fits a local polynomial; \code{"lm"} fits a
+global linear model. Use \code{"lm"} for small datasets or when a
+monotone trend is expected a priori.}
+
+\item{smooth_span}{Numeric(1). Span for loess smoothing (only used when
+\code{smooth_method = "loess"}). Smaller values (e.g. \code{0.4}) produce
+a more flexible curve; larger values (e.g. \code{0.9}) produce a smoother
+curve. Default: \code{0.75}. A warning is issued when
+\code{smooth_span < 0.5} and fewer than 10 observations are available,
+as this combination risks overfitting.}
+
+\item{smooth_weighted}{Logical(1). If \code{TRUE} (default), the smoothing
+curve is weighted by the number of chain observations per x-axis position,
+giving more influence to well-represented chain lengths/unsaturations.
+Mathematically more appropriate than unweighted loess when observation
+counts are unequal across positions.}
+
+\item{smooth_se}{Logical(1). Whether to display the 95\\% confidence
+interval ribbon around the smoothing curve. Default: \code{TRUE}.}
+
+\item{show_points}{Logical(1). Whether to display individual lipid points
+in trend plots, coloured by FDR significance. Default: \code{TRUE}.
+Set to \code{FALSE} to show only the smoothing curve (cleaner for
+classes with many lipids).}
+
+\item{tile_label}{Character(1). What to display inside each tile cell:
+\code{"both"} (default) shows total and significant lipid counts;
+\code{"n"} shows only the total; \code{"sig"} shows only significant;
+\code{"none"} shows no text.}
+
+\item{trend_test}{Character(1). Statistical test to annotate on trend plots.
+\code{"spearman"} (default) computes Spearman rank correlation between
+chain position (length or unsaturation) and logFC across individual lipids,
+reporting \eqn{\rho} and p-value. \code{"lm"} fits a weighted linear
+regression (weighted by n observations per position) and reports the slope
+\eqn{\beta} and p-value. \code{"none"} shows no statistical annotation.
+Note: these tests are computed on the individual lipid observations, not
+on the smoothed curve.}
+
+\item{trend_x_step_length}{Integer(1) or \code{NULL}. Step size for
+x-axis tick marks in chain length trend plots. Default: \code{2L}
+(every 2 carbons), suitable for the typical range of 8--36 carbons.
+Use \code{1L} for fine-grained resolution or \code{4L} for very wide
+ranges. When \code{NULL}, ggplot2 chooses breaks automatically.}
+
+\item{trend_x_step_unsat}{Integer(1) or \code{NULL}. Step size for
+x-axis tick marks in unsaturation trend plots. Default: \code{1L}
+(every double bond), suitable for the typical range of 0--8.
+When \code{NULL}, ggplot2 chooses breaks automatically.}
 }
 \value{
 Named list of \code{ggplot} objects with elements
