@@ -391,13 +391,11 @@ default_chain_config <- function() {
 #' @seealso \code{\link{default_chain_config}}, \code{plot_chains()}
 #'
 #' @examples
-#' \dontrun{
 #' data("lipid_example", package = "easyLSEA")
 #' annotated <- annotate_lipids(lipid_example)
 #' chains <- parse_lipid_chains(annotated)
 #' head(chains$parsed)
 #' head(chains$summary)
-#' }
 #'
 #' @export
 parse_lipid_chains <- function(
@@ -469,7 +467,7 @@ parse_lipid_chains <- function(
       .rank_order[[lip_rank]] else NA_integer_
 
     if (!is.null(rank_col) && (is.na(lip_rank) || lip_rank == "P" ||
-                                (!is.na(lip_rank_val) && lip_rank_val > min_rank_val))) {
+                               (!is.na(lip_rank_val) && lip_rank_val > min_rank_val))) {
       status_lbl <- if (is.na(lip_rank) || lip_rank == "P")
         "excluded_rank_P_or_NA"
       else
@@ -652,12 +650,12 @@ parse_lipid_chains <- function(
 #' @noRd
 .method_lbl <- function(chain_type) {
   switch(chain_type,
-    sn2         = "sn-2 chain (sn-1 excluded)",
-    nacyl       = "N-acyl chain (sphingoid base excluded)",
-    total       = "Total chain (both acyl chains summed)",
-    long_format = "All acyl chains -- long format, weighted by abundance",
-    single      = "Single acyl chain",
-    "unknown"
+         sn2         = "sn-2 chain (sn-1 excluded)",
+         nacyl       = "N-acyl chain (sphingoid base excluded)",
+         total       = "Total chain (both acyl chains summed)",
+         long_format = "All acyl chains -- long format, weighted by abundance",
+         single      = "Single acyl chain",
+         "unknown"
   )
 }
 
@@ -675,7 +673,7 @@ parse_lipid_chains <- function(
       rho  <- round(res$estimate, 2L)
       pval <- res$p.value
       pstr <- if (pval < 0.001) "p < 0.001"
-              else paste0("p = ", round(pval, 3L))
+      else paste0("p = ", round(pval, 3L))
       paste0("Spearman \u03c1 = ", sprintf("%+.2f", rho), ",  ", pstr)
     } else {
       # Weighted linear regression
@@ -685,7 +683,7 @@ parse_lipid_chains <- function(
       beta  <- round(cf["x", "Estimate"], 3L)
       pval  <- cf["x", "Pr(>|t|)"]
       pstr  <- if (pval < 0.001) "p < 0.001"
-               else paste0("p = ", round(pval, 3L))
+      else paste0("p = ", round(pval, 3L))
       paste0("\u03b2 = ", sprintf("%+.3f", beta), " per unit,  ", pstr,
              "  (weighted LM)")
     }
@@ -813,8 +811,8 @@ plot_chains <- function(
   # giving more influence to abundant lipids. Falls back to a "weight" column
   # if present, otherwise no weighting.
   wt_col     <- if ("AveExpr" %in% names(df)) "AveExpr"
-                else if ("weight" %in% names(df)) "weight"
-                else NULL
+  else if ("weight" %in% names(df)) "weight"
+  else NULL
   wt_is_log2 <- !is.null(wt_col) && wt_col == "AveExpr"
 
   plots <- list()
@@ -837,8 +835,8 @@ plot_chains <- function(
         mean_logFC = stats::weighted.mean(sub[[fc_col]], w = wt, na.rm = TRUE),
         n_lip_cell = length(unique(sub[[1L]])),
         n_sig_cell = if (has_sig)
-                       sum(sub[[sig_col]][!duplicated(sub[[1L]])], na.rm = TRUE)
-                     else 0L
+          sum(sub[[sig_col]][!duplicated(sub[[1L]])], na.rm = TRUE)
+        else 0L
       )
     }))
 
@@ -937,15 +935,15 @@ plot_chains <- function(
         ggplot2::aes(color = sig_label),
         size = 1.8, alpha = 0.65
       ) +
-      ggplot2::scale_color_manual(
-        values = c(
-          setNames("#E63946", paste0("FDR < ", fdr_thresh)),
-          NS = "grey55"
-        ),
-        name   = paste0("FDR < ", fdr_thresh),
-        labels = c(setNames("FDR sig", paste0("FDR < ", fdr_thresh)),
-                   NS = "NS")
-      )
+        ggplot2::scale_color_manual(
+          values = c(
+            setNames("#E63946", paste0("FDR < ", fdr_thresh)),
+            NS = "grey55"
+          ),
+          name   = paste0("FDR < ", fdr_thresh),
+          labels = c(setNames("FDR sig", paste0("FDR < ", fdr_thresh)),
+                     NS = "NS")
+        )
     }
 
     # Smoothing curve — weighted by n observations per position if requested
@@ -1074,15 +1072,15 @@ plot_chains <- function(
         ggplot2::aes(color = sig_label),
         size = 1.8, alpha = 0.65
       ) +
-      ggplot2::scale_color_manual(
-        values = c(
-          setNames("#E63946", paste0("FDR < ", fdr_thresh)),
-          NS = "grey55"
-        ),
-        name   = paste0("FDR < ", fdr_thresh),
-        labels = c(setNames("FDR sig", paste0("FDR < ", fdr_thresh)),
-                   NS = "NS")
-      )
+        ggplot2::scale_color_manual(
+          values = c(
+            setNames("#E63946", paste0("FDR < ", fdr_thresh)),
+            NS = "grey55"
+          ),
+          name   = paste0("FDR < ", fdr_thresh),
+          labels = c(setNames("FDR sig", paste0("FDR < ", fdr_thresh)),
+                     NS = "NS")
+        )
     }
 
     smooth_args <- list(

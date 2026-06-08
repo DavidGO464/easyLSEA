@@ -11,6 +11,11 @@
 
 \item{...}{Ignored.}
 }
+\value{
+Invisibly returns the input \code{easyLSEA_result} object
+(\code{x}). Called for its side effect of printing a formatted
+summary of the enrichment results to the console.
+}
 \description{
 Print method for easyLSEA_result
 }

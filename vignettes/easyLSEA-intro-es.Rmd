@@ -271,12 +271,14 @@ plots <- plot_lsea(
 
 ## Exportación de resultados
 
-`export_lsea()` guarda todos los resultados en una carpeta con marca de tiempo:
+`export_lsea()` guarda todos los resultados en una carpeta con marca de tiempo.
+Indica el directorio de salida explícitamente mediante `dir` (aquí un directorio
+temporal; para un análisis real usa una carpeta de tu elección):
 
 ```{r export}
 export_lsea(
   resultado,
-  dir    = "~/mis_resultados/",
+  dir    = tempdir(),
   format = c("csv", "excel", "pdf")
 )
 ```

@@ -12,7 +12,10 @@
 #'   \code{\link{easyLSEA}}, or a named list with elements \code{lsea}
 #'   and/or \code{chains} (output of \code{output = "separate"}).
 #' @param dir Character(1). Base directory where the output folder will be
-#'   created. Default: current working directory (\code{"."}).
+#'   created. Required: there is no default, so the function never writes
+#'   to the working directory, the package directory, or the user's home
+#'   filespace unless the caller explicitly provides a location. For
+#'   examples, tests, or throwaway output, pass \code{tempdir()}.
 #' @param prefix Character(1). Prefix for the output folder name. The folder
 #'   is named \code{<prefix>_<case>_vs_<ref>_<YYYY-MM-DD_HHMM>/} when
 #'   comparison labels are available, otherwise
@@ -78,8 +81,8 @@
 #'   verbose   = FALSE
 #' )))
 #'
-#' \dontrun{
-#' # Export CSV and PDF to a temp folder
+#' \donttest{
+#' # Export CSV and PDF to a temporary folder
 #' paths <- export_lsea(result, dir = tempdir(), format = c("csv", "pdf"))
 #' paths
 #' }
@@ -90,7 +93,7 @@
 #' @export
 export_lsea <- function(
     result,
-    dir         = ".",
+    dir,
     prefix      = "easyLSEA",
     format      = c("csv", "excel", "pdf"),
     overwrite   = FALSE,
@@ -99,6 +102,10 @@ export_lsea <- function(
     plot_dpi    = 300L,
     verbose     = TRUE
 ) {
+
+  if (missing(dir) || is.null(dir))
+    stop("'dir' is required: please supply an output directory ",
+         "(for temporary output use tempdir()).", call. = FALSE)
 
   format <- match.arg(format,
                       choices   = c("csv", "excel", "pdf", "png", "html"),
@@ -135,11 +142,11 @@ export_lsea <- function(
 
   # -- Extract data slots -----------------------------------------------------
   lsea_slot   <- if (inherits(result, "easyLSEA_result")) result$lsea
-                 else result$lsea
+  else result$lsea
   chains_slot <- if (inherits(result, "easyLSEA_result")) result$chains
-                 else result$chains
+  else result$chains
   plots_slot  <- if (inherits(result, "easyLSEA_result")) result$plots
-                 else NULL
+  else NULL
 
   # -- CSV export -------------------------------------------------------------
   if ("csv" %in% format) {
@@ -187,7 +194,7 @@ export_lsea <- function(
       openxlsx::writeData(wb, name, data, headerStyle = hdr)
       openxlsx::freezePane(wb, name, firstRow = TRUE)
       openxlsx::setColWidths(wb, name, cols = seq_len(ncol(data)),
-                              widths = "auto")
+                             widths = "auto")
     }
 
     .add_sheet(wb, "LSEA_KS",      lsea_slot$ks)
@@ -282,7 +289,7 @@ export_lsea <- function(
             # Formula:
             #   - base: 4.5 in (y-axis labels + legend)
             #   - panel: proportional to x_range (wider data = wider panel)
-            #     anchored so that x_range=3.5 (typical 01_Class) → 5.5 in panel
+            #     anchored so that x_range=3.5 (typical 01_Class) -> 5.5 in panel
             #   - floor: 10 in total (covers narrow-range levels like 02_LMAPS)
             x_r <- if (!is.null(x_range) && x_range > 0) x_range else 3.5
             max(10, 4.5 + x_r * 1.6)
@@ -403,7 +410,7 @@ export_lsea <- function(
 
   lsea_section <- '## LSEA results\n\n'
   lsea_slot    <- if (inherits(result, "easyLSEA_result")) result$lsea
-                  else result$lsea
+  else result$lsea
 
   if (!is.null(lsea_slot$ks) && nrow(lsea_slot$ks) > 0L) {
     lsea_section <- paste0(
@@ -419,7 +426,7 @@ export_lsea <- function(
 
   chain_section <- ''
   chains_slot   <- if (inherits(result, "easyLSEA_result")) result$chains
-                   else result$chains
+  else result$chains
 
   if (!is.null(chains_slot$summary) && nrow(chains_slot$summary) > 0L) {
     chain_section <- paste0(

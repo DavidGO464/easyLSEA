@@ -47,7 +47,7 @@ utils::globalVariables(c(".data", "Convergence", "label",
 #' @noRd
 .detect_lipid_id_col <- function(data) {
   candidates <- c("LipidName", "Lipid", "lipid", "Molecule", "molecule",
-                   "feature", "Feature", "Name", "name")
+                  "feature", "Feature", "Name", "name")
   col <- intersect(candidates, names(data))[[1L]]
   if (length(col) == 0L || is.na(col)) {
     return(NULL)   # caller will create a synthetic ID
@@ -188,7 +188,7 @@ utils::globalVariables(c(".data", "Convergence", "label",
     }, error = function(e) "--")
 
     n_contrib <- if (identical(contrib_str, "--")) 0L
-                 else length(strsplit(contrib_str, "; ")[[1L]])
+    else length(strsplit(contrib_str, "; ")[[1L]])
 
     data.frame(
       Group                 = grp,
@@ -320,7 +320,7 @@ utils::globalVariables(c(".data", "Convergence", "label",
     FDR_fgsea     = fg_res$padj,
     N_leading     = fg_res$size,   # size after minSize/maxSize filtering
     LeadingEdge   = vapply(fg_res$leadingEdge,
-                            paste, character(1L), collapse = "; "),
+                           paste, character(1L), collapse = "; "),
     rank_metric   = rank_col,
     Level         = group_col,
     stringsAsFactors = FALSE
@@ -470,7 +470,6 @@ utils::globalVariables(c(".data", "Convergence", "label",
 #'   \code{export_lsea()}
 #'
 #' @examples
-#' \dontrun{
 #' data("lipid_example", package = "easyLSEA")
 #' annotated <- annotate_lipids(lipid_example)
 #'
@@ -479,11 +478,11 @@ utils::globalVariables(c(".data", "Convergence", "label",
 #'   fc_col    = "logFC",
 #'   engine    = "ks",
 #'   case_lbl  = "NASH",
-#'   ref_lbl   = "Control"
+#'   ref_lbl   = "Control",
+#'   n_perm    = 100L
 #' )
 #'
 #' head(result$ks)
-#' }
 #'
 #' @importFrom stats ks.test p.adjust ecdf sd weighted.mean setNames
 #' @importFrom withr with_seed
@@ -581,11 +580,11 @@ run_lsea <- function(
 
     if (engine %in% c("fgsea", "both")) {
       rank_col_use <- switch(fgsea_rank,
-        pi_value = "pi_value",
-        logFC    = fc_col,
-        t_stat   = if ("t" %in% names(data)) "t"
-                   else if ("t_stat" %in% names(data)) "t_stat"
-                   else { message("t-statistic column not found."); fc_col }
+                             pi_value = "pi_value",
+                             logFC    = fc_col,
+                             t_stat   = if ("t" %in% names(data)) "t"
+                             else if ("t_stat" %in% names(data)) "t_stat"
+                             else { message("t-statistic column not found."); fc_col }
       )
       fgsea_results[[gcol]] <- .run_fgsea_engine(
         data         = data,
@@ -602,12 +601,12 @@ run_lsea <- function(
 
   # -- Bind results ------------------------------------------------------------
   ks_df    <- if (length(ks_results) > 0L)
-                do.call(rbind, Filter(Negate(is.null), ks_results))
-              else NULL
+    do.call(rbind, Filter(Negate(is.null), ks_results))
+  else NULL
 
   fgsea_df <- if (length(fgsea_results) > 0L)
-                do.call(rbind, Filter(Negate(is.null), fgsea_results))
-              else NULL
+    do.call(rbind, Filter(Negate(is.null), fgsea_results))
+  else NULL
 
   # -- Combined table (KS + fgsea + Convergence) ----------------------------
   combined <- NULL
@@ -615,7 +614,7 @@ run_lsea <- function(
     combined <- merge(
       ks_df,
       fgsea_df[, c("Group", "Level", "NES", "FDR_fgsea",
-                    "fgsea_pval", "LeadingEdge", "N_leading")],
+                   "fgsea_pval", "LeadingEdge", "N_leading")],
       by      = c("Group", "Level"),
       all     = TRUE
     )
@@ -638,9 +637,9 @@ run_lsea <- function(
 
   if (verbose) {
     n_ks_sig    <- if (!is.null(ks_df))
-                     sum(ks_df$FDR_LSEA < 0.05, na.rm = TRUE) else 0L
+      sum(ks_df$FDR_LSEA < 0.05, na.rm = TRUE) else 0L
     n_fgsea_sig <- if (!is.null(fgsea_df))
-                     sum(fgsea_df$FDR_fgsea < 0.05, na.rm = TRUE) else 0L
+      sum(fgsea_df$FDR_fgsea < 0.05, na.rm = TRUE) else 0L
     message("Done. KS sig sets (FDR<0.05): ", n_ks_sig,
             " | fgsea sig sets: ", n_fgsea_sig)
   }
@@ -762,7 +761,7 @@ plot_lsea <- function(
                        size = N_group, color = DirectionalScore)
         ) +
           ggplot2::geom_vline(xintercept = 0, linetype = "dashed",
-                               color = "grey60") +
+                              color = "grey60") +
           ggplot2::geom_point(
             ggplot2::aes(alpha = FDR_LSEA < fdr_thresh),
             show.legend = TRUE
@@ -805,9 +804,9 @@ plot_lsea <- function(
           ggplot2::theme_bw(base_size = 11) +
           ggplot2::theme(
             plot.title       = ggplot2::element_text(face = "bold", size = 12,
-                                                      hjust = 0.5),
+                                                     hjust = 0.5),
             plot.subtitle    = ggplot2::element_text(size = 9, hjust = 0.5,
-                                                      color = "grey50"),
+                                                     color = "grey50"),
             axis.text.y      = ggplot2::element_text(size = 10, face = "bold"),
             panel.grid.minor = ggplot2::element_blank(),
             plot.margin      = ggplot2::margin(t = 8, r = 20, b = 8, l = 20)
@@ -874,7 +873,7 @@ plot_lsea <- function(
           ggplot2::aes(x = NES, y = Group, size = N_leading, color = NES)
         ) +
           ggplot2::geom_vline(xintercept = 0, linetype = "dashed",
-                               color = "grey60") +
+                              color = "grey60") +
           ggplot2::geom_point(
             ggplot2::aes(alpha = FDR_fgsea < fdr_thresh),
             show.legend = TRUE
@@ -916,9 +915,9 @@ plot_lsea <- function(
           ggplot2::theme_bw(base_size = 11) +
           ggplot2::theme(
             plot.title       = ggplot2::element_text(face = "bold", size = 12,
-                                                      hjust = 0.5),
+                                                     hjust = 0.5),
             plot.subtitle    = ggplot2::element_text(size = 9, hjust = 0.5,
-                                                      color = "grey50"),
+                                                     color = "grey50"),
             axis.text.y      = ggplot2::element_text(size = 10, face = "bold"),
             panel.grid.minor = ggplot2::element_blank(),
             plot.margin      = ggplot2::margin(t = 8, r = 20, b = 8, l = 20)
@@ -1010,7 +1009,7 @@ plot_distribution <- function(
   if (has_both) {
     sig_meta <- lsea_result$combined
     sig_meta$.is_sig_any <- (!is.na(sig_meta$FDR_LSEA)  & sig_meta$FDR_LSEA  < fdr_thresh) |
-                            (!is.na(sig_meta$FDR_fgsea) & sig_meta$FDR_fgsea < fdr_thresh)
+      (!is.na(sig_meta$FDR_fgsea) & sig_meta$FDR_fgsea < fdr_thresh)
     # Map combined Convergence short labels to palette labels
     conv_map <- c(
       "KS+fgsea"   = "KS+fgsea [strongest]",
@@ -1114,7 +1113,7 @@ plot_distribution <- function(
         sprintf("FDR=%s\nDS=%+.2f", fdr_str, ds)
       }
     }, fdr_labels$Convergence, fdr_labels$fdr_val,
-       fdr_labels$DirectionalScore, fdr_labels$NES)
+    fdr_labels$DirectionalScore, fdr_labels$NES)
 
     fdr_labels$Group <- factor(fdr_labels$Group, levels = set_order)
     fdr_labels$y_lbl <- y_lbl
@@ -1159,10 +1158,10 @@ plot_distribution <- function(
       hjust         = if (label_angle == 90) 0 else 0.5,
       vjust         = 0,
       size          = if (sig_only) {
-                         if (label_angle == 0) 3.4 else 3.0
-                       } else {
-                         if (label_angle == 0) 2.5 else 2.8
-                       },
+        if (label_angle == 0) 3.4 else 3.0
+      } else {
+        if (label_angle == 0) 2.5 else 2.8
+      },
       color         = "#E63946",
       fontface      = "bold",
       fill          = "white",
@@ -1202,8 +1201,8 @@ plot_distribution <- function(
       plot.subtitle      = ggplot2::element_text(size = 9, hjust = 0.5, color = "grey45"),
       plot.caption       = ggplot2::element_text(size = 7, color = "grey55", hjust = 0),
       axis.text.x        = ggplot2::element_text(angle = 90, vjust = 0.5,
-                                                  hjust = 1, size = 8,
-                                                  face = "bold"),
+                                                 hjust = 1, size = 8,
+                                                 face = "bold"),
       axis.text.y        = ggplot2::element_text(size = 9),
       panel.grid.major.y = ggplot2::element_line(color = "grey93"),
       panel.grid.minor   = ggplot2::element_blank(),

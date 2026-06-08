@@ -6,7 +6,7 @@
 \usage{
 export_lsea(
   result,
-  dir = ".",
+  dir,
   prefix = "easyLSEA",
   format = c("csv", "excel", "pdf"),
   overwrite = FALSE,
@@ -22,7 +22,10 @@ export_lsea(
 and/or \code{chains} (output of \code{output = "separate"}).}
 
 \item{dir}{Character(1). Base directory where the output folder will be
-created. Default: current working directory (\code{"."}).}
+created. Required: there is no default, so the function never writes
+to the working directory, the package directory, or the user's home
+filespace unless the caller explicitly provides a location. For
+examples, tests, or throwaway output, pass \code{tempdir()}.}
 
 \item{prefix}{Character(1). Prefix for the output folder name. The folder
 is named \code{<prefix>_<case>_vs_<ref>_<YYYY-MM-DD_HHMM>/} when
@@ -69,6 +72,7 @@ Any combination of formats can be requested in a single call.
     lsea_combined.csv
     chain_results.csv
     chain_parsed.csv
+    chain_wide.csv
   plots/
     lsea/
       bubble_ks.pdf
@@ -102,8 +106,8 @@ result <- suppressWarnings(suppressMessages(easyLSEA(
   verbose   = FALSE
 )))
 
-\dontrun{
-# Export CSV and PDF to a temp folder
+\donttest{
+# Export CSV and PDF to a temporary folder
 paths <- export_lsea(result, dir = tempdir(), format = c("csv", "pdf"))
 paths
 }

@@ -63,13 +63,11 @@ long-format (TG, DG, PS, PG, PA, PI, CL),
 single-chain (LPC, LPE, LPI, LPG, LPA, LPS, CAR, FFA, FA, CE), or excluded.
 }
 \examples{
-\dontrun{
 data("lipid_example", package = "easyLSEA")
 annotated <- annotate_lipids(lipid_example)
 chains <- parse_lipid_chains(annotated)
 head(chains$parsed)
 head(chains$summary)
-}
 
 }
 \seealso{

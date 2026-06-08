@@ -268,12 +268,14 @@ plots <- plot_lsea(
 
 ## Exporting results
 
-`export_lsea()` saves all results to a timestamped folder:
+`export_lsea()` saves all results to a timestamped folder. Supply the output
+directory explicitly via `dir` (here a temporary directory; for a real
+analysis use a folder of your choice):
 
 ```{r export}
 export_lsea(
   result,
-  dir    = "~/my_results/",
+  dir    = tempdir(),
   format = c("csv", "excel", "pdf")
 )
 ```

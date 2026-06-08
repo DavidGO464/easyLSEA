@@ -222,10 +222,10 @@ easyLSEA <- function(
     dist_plots <- list()
     for (gcol in group_cols) {
       lbl <- switch(gcol,
-        LipidClass               = "01_Class",
-        LipidCategory_LMAPS      = "02_LMAPS",
-        LipidCategory_functional = "03_Functional",
-        gcol
+                    LipidClass               = "01_Class",
+                    LipidCategory_LMAPS      = "02_LMAPS",
+                    LipidCategory_functional = "03_Functional",
+                    gcol
       )
       key <- paste0("dist_", lbl)
       dist_plots[[key]] <- tryCatch(
@@ -321,6 +321,9 @@ easyLSEA <- function(
 #'
 #' @param x An \code{easyLSEA_result} object.
 #' @param ... Ignored.
+#' @return Invisibly returns the input \code{easyLSEA_result} object
+#'   (\code{x}). Called for its side effect of printing a formatted
+#'   summary of the enrichment results to the console.
 #' @export
 print.easyLSEA_result <- function(x, ...) {
 
@@ -372,6 +375,9 @@ print.easyLSEA_result <- function(x, ...) {
 #' @param padj_cutoff Numeric(1). FDR threshold for significant sets.
 #'   Default: \code{0.05}.
 #' @param ... Ignored.
+#' @return Invisibly returns the input \code{easyLSEA_result} object
+#'   (\code{object}). Called for its side effect of printing a summary
+#'   table of the significant lipid sets to the console.
 #' @export
 summary.easyLSEA_result <- function(object, padj_cutoff = 0.05, ...) {
 

@@ -14,6 +14,11 @@ Default: \code{0.05}.}
 
 \item{...}{Ignored.}
 }
+\value{
+Invisibly returns the input \code{easyLSEA_result} object
+(\code{object}). Called for its side effect of printing a summary
+table of the significant lipid sets to the console.
+}
 \description{
 Summary method for easyLSEA_result
 }

@@ -87,7 +87,6 @@ Runs KS-based LSEA, fgsea, or both for each grouping level in
 statistics.
 }
 \examples{
-\dontrun{
 data("lipid_example", package = "easyLSEA")
 annotated <- annotate_lipids(lipid_example)
 
@@ -96,11 +95,11 @@ result <- run_lsea(
   fc_col    = "logFC",
   engine    = "ks",
   case_lbl  = "NASH",
-  ref_lbl   = "Control"
+  ref_lbl   = "Control",
+  n_perm    = 100L
 )
 
 head(result$ks)
-}
 
 }
 \references{
