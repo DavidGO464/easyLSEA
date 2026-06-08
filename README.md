@@ -6,7 +6,7 @@
 [![R-CMD-check](https://github.com/DavidGO464/easyLSEA/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/DavidGO464/easyLSEA/actions/workflows/R-CMD-check.yaml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
  
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20341372.svg)](https://doi.org/10.5281/zenodo.20341372)
+ [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20341372.svg)](https://doi.org/10.5281/zenodo.20341372)
 
  [![GitHub Downloads](https://img.shields.io/github/downloads/DavidGO464/easyLSEA/total?style=flat-square&color=orange)](https://github.com/DavidGO464/easyLSEA/releases)
 
